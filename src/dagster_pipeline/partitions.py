@@ -36,6 +36,7 @@ RUN_TIME_PARTITIONS = dg.HourlyPartitionsDefinition(
     start_date=WEATHER_PARTITION_START,
     timezone="UTC",
     fmt=RUN_TIME_PARTITION_FORMAT,
+    end_offset = 1
 )
 
 LEAD_TIME_PARTITIONS = dg.StaticPartitionsDefinition(
