@@ -121,11 +121,236 @@ def _safe_get(
     handle,
     key: str,
     default=None,
+    value_type=None,
 ):
     try:
-        return codes_get(handle, key)
+        if value_type is None:
+            return codes_get(handle, key)
+        return codes_get(
+            handle,
+            key,
+            value_type,
+        )
     except Exception:
         return default
+
+
+def _metadata_from_handle(
+    *,
+    codes_get,
+    handle,
+    number_of_points_default=None,
+) -> dict[str, Any]:
+    """
+    Extract the project-relevant GRIB metadata without decoding the
+    full value array.
+
+    Numeric code-table values are requested explicitly as integers so
+    ecCodes cannot substitute symbolic strings such as ``sfc`` where
+    the project contract expects the numeric GRIB code.
+    """
+    metadata = {
+        "edition": _safe_get(
+            codes_get,
+            handle,
+            "edition",
+            value_type=int,
+        ),
+        "centre": _safe_get(
+            codes_get,
+            handle,
+            "centre",
+        ),
+        "shortName": _safe_get(
+            codes_get,
+            handle,
+            "shortName",
+        ),
+        "name": _safe_get(
+            codes_get,
+            handle,
+            "name",
+        ),
+        "units": _safe_get(
+            codes_get,
+            handle,
+            "units",
+        ),
+        "discipline": _safe_get(
+            codes_get,
+            handle,
+            "discipline",
+            value_type=int,
+        ),
+        "parameterCategory": _safe_get(
+            codes_get,
+            handle,
+            "parameterCategory",
+            value_type=int,
+        ),
+        "parameterNumber": _safe_get(
+            codes_get,
+            handle,
+            "parameterNumber",
+            value_type=int,
+        ),
+        "typeOfFirstFixedSurface": _safe_get(
+            codes_get,
+            handle,
+            "typeOfFirstFixedSurface",
+            value_type=int,
+        ),
+        "scaleFactorOfFirstFixedSurface": _safe_get(
+            codes_get,
+            handle,
+            "scaleFactorOfFirstFixedSurface",
+            value_type=int,
+        ),
+        "scaledValueOfFirstFixedSurface": _safe_get(
+            codes_get,
+            handle,
+            "scaledValueOfFirstFixedSurface",
+            value_type=int,
+        ),
+        "typeOfLevel": _safe_get(
+            codes_get,
+            handle,
+            "typeOfLevel",
+        ),
+        "level": _safe_get(
+            codes_get,
+            handle,
+            "level",
+        ),
+        "numberOfPoints": _safe_get(
+            codes_get,
+            handle,
+            "numberOfPoints",
+            number_of_points_default,
+            value_type=int,
+        ),
+        "numberOfMissing": _safe_get(
+            codes_get,
+            handle,
+            "numberOfMissing",
+            0,
+            value_type=int,
+        ),
+        "bitmapPresent": _safe_get(
+            codes_get,
+            handle,
+            "bitmapPresent",
+            0,
+            value_type=int,
+        ),
+        "missingValue": _safe_get(
+            codes_get,
+            handle,
+            "missingValue",
+            9999.0,
+        ),
+        "gridType": _safe_get(
+            codes_get,
+            handle,
+            "gridType",
+        ),
+        "uuidOfHGrid": _safe_get(
+            codes_get,
+            handle,
+            "uuidOfHGrid",
+        ),
+        "forecastTime": _safe_get(
+            codes_get,
+            handle,
+            "forecastTime",
+            value_type=int,
+        ),
+        "stepRange": _safe_get(
+            codes_get,
+            handle,
+            "stepRange",
+        ),
+    }
+
+    run_time = parse_grib_datetime(
+        _safe_get(
+            codes_get,
+            handle,
+            "dataDate",
+            value_type=int,
+        ),
+        _safe_get(
+            codes_get,
+            handle,
+            "dataTime",
+            value_type=int,
+        ),
+    )
+
+    valid_time = parse_grib_datetime(
+        _safe_get(
+            codes_get,
+            handle,
+            "validityDate",
+            value_type=int,
+        ),
+        _safe_get(
+            codes_get,
+            handle,
+            "validityTime",
+            value_type=int,
+        ),
+    )
+
+    metadata["run_time_utc"] = (
+        run_time.isoformat()
+        if run_time is not None
+        else None
+    )
+    metadata["valid_time_utc"] = (
+        valid_time.isoformat()
+        if valid_time is not None
+        else None
+    )
+
+    return metadata
+
+
+def extract_grib_metadata(
+    path: Path,
+) -> dict[str, Any]:
+    """
+    Read only the GRIB identity/structural metadata needed for a raw
+    asset boundary check.
+
+    This deliberately avoids ``codes_get_values`` so retained raw files
+    can be validated cheaply before Dagster reports a successful raw
+    materialization.
+    """
+    eccodes = _load_eccodes()
+    codes_get = eccodes["codes_get"]
+    codes_grib_new_from_file = eccodes[
+        "codes_grib_new_from_file"
+    ]
+    codes_release = eccodes["codes_release"]
+
+    with path.open("rb") as file_handle:
+        handle = codes_grib_new_from_file(
+            file_handle
+        )
+
+        if handle is None:
+            raise RuntimeError(
+                f"No GRIB message found in {path}"
+            )
+
+        try:
+            return _metadata_from_handle(
+                codes_get=codes_get,
+                handle=handle,
+            )
+        finally:
+            codes_release(handle)
 
 
 def extract_grib_field(
@@ -164,159 +389,10 @@ def extract_grib_field(
                 dtype="float64",
             )
 
-            metadata = {
-                "edition": _safe_get(
-                    codes_get,
-                    handle,
-                    "edition",
-                ),
-                "centre": _safe_get(
-                    codes_get,
-                    handle,
-                    "centre",
-                ),
-                "shortName": _safe_get(
-                    codes_get,
-                    handle,
-                    "shortName",
-                ),
-                "name": _safe_get(
-                    codes_get,
-                    handle,
-                    "name",
-                ),
-                "units": _safe_get(
-                    codes_get,
-                    handle,
-                    "units",
-                ),
-                "discipline": _safe_get(
-                    codes_get,
-                    handle,
-                    "discipline",
-                ),
-                "parameterCategory": _safe_get(
-                    codes_get,
-                    handle,
-                    "parameterCategory",
-                ),
-                "parameterNumber": _safe_get(
-                    codes_get,
-                    handle,
-                    "parameterNumber",
-                ),
-                "typeOfFirstFixedSurface": (
-                    _safe_get(
-                        codes_get,
-                        handle,
-                        "typeOfFirstFixedSurface",
-                    )
-                ),
-                "scaleFactorOfFirstFixedSurface": (
-                    _safe_get(
-                        codes_get,
-                        handle,
-                        "scaleFactorOfFirstFixedSurface",
-                    )
-                ),
-                "scaledValueOfFirstFixedSurface": (
-                    _safe_get(
-                        codes_get,
-                        handle,
-                        "scaledValueOfFirstFixedSurface",
-                    )
-                ),
-                "typeOfLevel": _safe_get(
-                    codes_get,
-                    handle,
-                    "typeOfLevel",
-                ),
-                "level": _safe_get(
-                    codes_get,
-                    handle,
-                    "level",
-                ),
-                "numberOfPoints": _safe_get(
-                    codes_get,
-                    handle,
-                    "numberOfPoints",
-                    len(values),
-                ),
-                "numberOfMissing": _safe_get(
-                    codes_get,
-                    handle,
-                    "numberOfMissing",
-                    0,
-                ),
-                "bitmapPresent": _safe_get(
-                    codes_get,
-                    handle,
-                    "bitmapPresent",
-                    0,
-                ),
-                "missingValue": _safe_get(
-                    codes_get,
-                    handle,
-                    "missingValue",
-                    9999.0,
-                ),
-                "gridType": _safe_get(
-                    codes_get,
-                    handle,
-                    "gridType",
-                ),
-                "uuidOfHGrid": _safe_get(
-                    codes_get,
-                    handle,
-                    "uuidOfHGrid",
-                ),
-                "forecastTime": _safe_get(
-                    codes_get,
-                    handle,
-                    "forecastTime",
-                ),
-                "stepRange": _safe_get(
-                    codes_get,
-                    handle,
-                    "stepRange",
-                ),
-            }
-
-            run_time = parse_grib_datetime(
-                _safe_get(
-                    codes_get,
-                    handle,
-                    "dataDate",
-                ),
-                _safe_get(
-                    codes_get,
-                    handle,
-                    "dataTime",
-                ),
-            )
-
-            valid_time = parse_grib_datetime(
-                _safe_get(
-                    codes_get,
-                    handle,
-                    "validityDate",
-                ),
-                _safe_get(
-                    codes_get,
-                    handle,
-                    "validityTime",
-                ),
-            )
-
-            metadata["run_time_utc"] = (
-                run_time.isoformat()
-                if run_time is not None
-                else None
-            )
-            metadata["valid_time_utc"] = (
-                valid_time.isoformat()
-                if valid_time is not None
-                else None
+            metadata = _metadata_from_handle(
+                codes_get=codes_get,
+                handle=handle,
+                number_of_points_default=len(values),
             )
 
             number_missing = int(
@@ -329,17 +405,11 @@ def extract_grib_field(
                 metadata["missingValue"]
             )
 
-            values = (
-                normalize_bitmap_missing_values(
-                    values,
-                    number_of_missing=(
-                        number_missing
-                    ),
-                    bitmap_present=(
-                        bitmap_present
-                    ),
-                    missing_value=missing_value,
-                )
+            values = normalize_bitmap_missing_values(
+                values,
+                number_of_missing=number_missing,
+                bitmap_present=bitmap_present,
+                missing_value=missing_value,
             )
 
             return DecodedIconField(
@@ -351,25 +421,37 @@ def extract_grib_field(
             codes_release(handle)
 
 
+def _source_suffix(
+    source_path: Path | None,
+) -> str:
+    if source_path is None:
+        return ""
+    return f"; path={source_path}"
+
+
 def validate_field_metadata(
     *,
     indicator: str,
     forecast: ForecastKey,
     metadata: dict[str, Any],
     expected_point_count: int | None = None,
+    source_path: Path | None = None,
 ) -> None:
     """
-    Validate the source identity needed for safe normalization.
+    Validate the source identity needed for safe normalization or raw
+    retained-file reuse.
 
     This is intentionally limited to project-critical metadata:
     indicator identity, surface, units, forecast identity, point count,
     and GRIB missing-value structure.
     """
     contract = get_indicator(indicator)
+    suffix = _source_suffix(source_path)
 
     if int(metadata.get("edition", -1)) != 2:
         raise ValueError(
             f"{indicator} is not GRIB edition 2"
+            f"{suffix}"
         )
 
     expected_pairs = {
@@ -397,8 +479,9 @@ def validate_field_metadata(
         ):
             raise ValueError(
                 f"{indicator} metadata mismatch "
-                f"for {key}: {actual!r}; "
-                f"expected {expected!r}"
+                f"for {key}: actual={actual!r}, "
+                f"expected={expected!r}"
+                f"{suffix}"
             )
 
     actual_unit = normalize_unit(
@@ -411,8 +494,11 @@ def validate_field_metadata(
 
     if actual_unit not in allowed_units:
         raise ValueError(
-            f"{indicator} has unexpected units "
-            f"{metadata.get('units')!r}"
+            f"{indicator} has unexpected units: "
+            f"actual={metadata.get('units')!r}, "
+            f"expected one of="
+            f"{sorted(contract.allowed_units)!r}"
+            f"{suffix}"
         )
 
     points = metadata.get("numberOfPoints")
@@ -424,9 +510,10 @@ def validate_field_metadata(
         != int(expected_point_count)
     ):
         raise ValueError(
-            f"{indicator} has {int(points):,} "
-            "GRIB points; expected "
-            f"{int(expected_point_count):,}"
+            f"{indicator} GRIB point-count mismatch: "
+            f"actual={int(points):,}, "
+            f"expected={int(expected_point_count):,}"
+            f"{suffix}"
         )
 
     number_missing = int(
@@ -443,6 +530,7 @@ def validate_field_metadata(
         raise ValueError(
             f"{indicator} reports missing values "
             "without a GRIB bitmap"
+            f"{suffix}"
         )
 
     run_time_text = metadata.get(
@@ -455,11 +543,13 @@ def validate_field_metadata(
     if run_time_text is None:
         raise ValueError(
             f"{indicator} GRIB has no run time"
+            f"{suffix}"
         )
 
     if valid_time_text is None:
         raise ValueError(
             f"{indicator} GRIB has no valid time"
+            f"{suffix}"
         )
 
     actual_run_time = datetime.fromisoformat(
@@ -472,15 +562,46 @@ def validate_field_metadata(
 
     if actual_run_time != forecast.run_time:
         raise ValueError(
-            f"{indicator} run time does not match "
-            "the requested forecast partition"
+            f"{indicator} run-time mismatch: "
+            f"actual={actual_run_time.isoformat()}, "
+            f"expected={forecast.run_time.isoformat()}"
+            f"{suffix}"
         )
 
     if actual_valid_time != forecast.valid_time:
         raise ValueError(
-            f"{indicator} valid time does not match "
-            "run_time + lead_time"
+            f"{indicator} valid-time mismatch: "
+            f"actual={actual_valid_time.isoformat()}, "
+            f"expected={forecast.valid_time.isoformat()} "
+            "(run_time + lead_time)"
+            f"{suffix}"
         )
+
+
+def read_and_validate_grib_metadata(
+    *,
+    path: Path,
+    indicator: str,
+    forecast: ForecastKey,
+    expected_point_count: int | None = None,
+) -> dict[str, Any]:
+    """
+    Lightweight raw-file identity validation.
+
+    The raw asset uses this before declaring either a retained file or a
+    newly downloaded file successfully materialized.
+    """
+    metadata = extract_grib_metadata(path)
+
+    validate_field_metadata(
+        indicator=indicator,
+        forecast=forecast,
+        metadata=metadata,
+        expected_point_count=expected_point_count,
+        source_path=path,
+    )
+
+    return metadata
 
 
 def decode_and_validate_field(
@@ -499,6 +620,7 @@ def decode_and_validate_field(
         expected_point_count=(
             expected_point_count
         ),
+        source_path=path,
     )
 
     return decoded
