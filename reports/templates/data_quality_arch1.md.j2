@@ -1,0 +1,411 @@
+---
+title: "Data quality report - architecture v1"
+date: 2026-08-18
+author: Ole Hexel
+format: gfm
+execute:
+  echo: false
+---
+# Purpose
+This document reports on the profiling, validation, and testing results. The broad guiding principles were:
+
+- profiling tells us what the data looks like;
+- runtime validation tells us whether we can trust a run (and surfaces errors or warnings as early as possible in the pipeline);
+- unit tests tell us whether transformation and validation logic behaves as expected.
+
+At this stage, everything is done in ordinary Python (using `pytest` and persistent JSON reports) by design. The intention is to incrementally add tools or frameworks to automate or formalize specific aspects of the projects (see `docs/adr/002_architectural_scope.md`).
+
+# Scope
+
+Architecture 1 currently profiles and tests four important assets:
+
+1. Berlin LOR "Planungsraum" geometry
+2. DWD ICON-D2 static grid definition
+3. DWD ICON-D2-RUC `T_2M` temperature fields
+4. The derived ICON-D2 ↔ Planungsraum area-weight bridge
+
+Profiling reports are stored under `reports/profiling/`.
+
+Current profiling modules are:
+
+```{text}
+src/profile_lor.py
+src/profile_icon_grid.py
+src/profile_icon_t2m.py
+src/profile_icon_plr_bridge.py
+```
+
+Runtime validation that is logically separate from profiling is kept in: `src/validate_icon_t2m.py`.
+
+Tests are implemented with `pytest`.
+
+# LOR Planungsraum geometry
+## Source description
+[Source link](https://daten.berlin.de/datensaetze/lebensweltlich-orientierte-raume-lor-01-01-2021-wfs-34c86848)
+
+The _Lebensweltlich orientierte Räume_ (LOR) are Berlin's official planning and monitoring geography. The metadata are available through a CKAN data catalogue. The current hierarchy has been valid since 2021-01-01 and contains:
+
+- 12 Bezirke
+- 58 Prognoseräume
+- 143 Bezirksregionen
+- 542 Planungsräume
+
+The Planungsraum is the lowest LOR level and is the spatial unit used by this project. The geometry represents planning-area boundaries, not a demographic or environmental measurement.
+
+The data catalogue highlights that identifiers, geometries, and counts are _source-version-specific_ and may change (as happened in 2021). The count of 542 Planungsräume, for example, is not an immutable fact about Berlin geography. A mature system would need to periodically check for such changes.
+
+
+## Profiling
+
+The LOR profiler (`reports/profiling/lor_profile.json`) records:
+
+|   |   |
+|:-----------------------|---:|
+| number of features     | {{ lor.input_feature_count }} |
+| schema and data types  | 13 columns, `str`, `float64`, `geometry` |
+| identifier column used | {{ lor.identity.plr_id_column }} |
+| identifiers... 	 | |
+| ... distinct, count 	 | {{ lor.identity.distinct_plr_id_count }} |
+| ... duplicate, count 	 | {{ lor.identity.duplicate_plr_id_count }} |
+| ... null, count 	 | {{ lor.identity.null_plr_id_count }} |
+| CRS 			 | {{ lor.geometry.crs }} |
+| geometry types 	 | `MultiPolygon` | 
+| geometries, ... 	 | |
+| ... null, count 	 | {{ lor.geometry.null_geometry_count }} |
+| ... empty, count 	 | {{ lor.geometry.empty_geometry_count }} |
+| ... invalid, count 	 | {{ lor.geometry.invalid_geometry_count }} |
+
+## Contracts
+The following conditions are treated as data contracts:
+
+- PLR identifier
+	- present
+	- non-null
+	- unique
+- geometry:
+	- present
+	- not empty
+	- valid 
+	- polygonal (i.e. a Planungsraum cannot be a point or line)
+- the current source version must use EPSG:25833
+- the current LOR snapshot must contain 542 PLRs
+
+The last contract implicitly checks for changes to the LOR geometry.
+
+# ICON-D2 static grid
+## Source meaning
+[Source link](http://icon-downloads.mpimet.mpg.de/dwd_grids.xml#grid47)
+
+The ICON-D2 grid is the spatial grid on which DWD model output is provided. The project uses DWD Grid #47, stored in `data/raw/icon-d2-grid/icon_grid_0047_R19B07_L.nc.bz2`.
+
+
+The grid definition contains cell centers, grid vertices, and the vertex-to-cell connectivity required to reconstruct the native triangular cells.
+
+## Observed structural values
+
+The grid used by the project contains:
+
+- cells: {{ grid.cell_count }}
+- vertices: {{ grid.vertex_count }}
+- vertices per cell: 3 (by definition)
+
+These values were confirmed while decoding the grid and are used as current grid-version expectations.
+
+## Profiling
+
+The grid profiler records:
+
+- NetCDF dimensions
+- available variables
+- number of cells
+- number of vertices
+- normalized connectivity shape
+- number of unique vertices referenced
+
+## Contracts
+
+The current grid contracts are:
+
+- required NetCDF variables must be present
+- `clon` and `clat` must have compatible lengths
+- `vlon` and `vlat` must have compatible lengths
+- the current grid contains 542,040 cells
+- the current grid contains 272,089 vertices
+- every cell must reference exactly three vertices
+- all connectivity indexes must reference valid vertices
+- longitude and latitude coordinates must be finite
+- longitude must remain within valid geographic bounds
+- latitude must remain within valid geographic bounds
+
+The cell and vertex counts are version-specific expectations for the grid used by the project.
+
+# ICON-D2-RUC T_2M
+## Source
+[Source link](https://dwd-geoportal.de/products/iconruc/)
+
+The dynamic environmental input is the ICON-D2-RUC `T_2M` field.
+
+Each decoded run is represented as one temperature value per native ICON grid cell, together with:
+
+```{text}
+cell_index
+run_time_utc
+valid_time_utc
+temperature_k
+temperature_c
+```
+
+Architecture 1 currently works with lead-zero fields, so the run time and valid time are expected to match.
+
+## Missing-value semantics
+
+During profiling, I discovered temperature values of 9999 Kelvin and 9725.85 Celsius . I assume that these denote missing values. I report missing values separately for the entire dataset and for Berlin-relevant cells.
+
+## Profiling
+
+Each T_2M run produces a separate profiling report.
+
+The profiler records:
+
+- total row count
+- distinct cell count
+- duplicate cell indexes
+- null counts
+- run time
+- valid time
+- forecast lead time
+- missing-temperature count
+- missing-temperature share
+- observed temperature distribution in Kelvin
+- observed temperature distribution in Celsius
+- non-finite observed-value counts
+- Berlin-relevant cell coverage
+- missing temperatures among Berlin-relevant cells
+
+Observed temperature distributions are profiling information and are not expected to remain constant between model runs.
+
+## Contracts
+
+The T_2M contracts are:
+
+- required columns must exist
+- the field must contain 542,040 rows for the current ICON grid
+- `cell_index` must be non-null
+- `cell_index` must be unique
+- exactly one run time must occur in a file
+- exactly one valid time must occur in a file
+- for the lead-zero field, run time must equal valid time
+- missing temperatures must use the consistent pair `9999 K / 9725.85 °C`
+- non-missing Kelvin values must be finite
+- non-missing Celsius values must be finite
+- Celsius must equal Kelvin minus 273.15 within numerical tolerance
+- observed Kelvin temperatures must lie within the project's broad sanity range of 253 K to 323 K
+
+I used the 253–323 K (approx. −20 °C to 50 °C) range to identify unusual values during manual profiling. I am keeping it as a broad sanity check, to detect decoding failures or corrupt values. It is not meant to define climatologically normal weather.
+
+# ICON-D2 ↔ Planungsraum area bridge
+## 6.1 Purpose
+The ICON-D2 weather grid and the Berlin LOR geometry use different spatial units. The project therefore derives a static bridge between ICON triangles and Planungsräume by calculating polygon intersections. The bridge uses polygon intersection.
+
+Each bridge row contains:
+
+```{text}
+plr_id
+cell_index
+intersection_area_m2
+plr_area_m2
+icon_cell_area_m2
+fraction_of_plr
+fraction_of_icon_cell
+```
+
+`fraction_of_plr` represents the share of a Planungsraum covered by a particular ICON cell and is used for area-weighted PLR temperature aggregation.
+
+## Observed current bridge
+The current bridge build produced:
+
+- Planungsräume: {{ bridge.distinct_plr_count }}
+- ICON cells intersecting Berlin: {{ bridge.distinct_icon_cell_count }}
+- PLR ↔ ICON intersection rows: {{ bridge.row_count }}
+- mean ICON cells per PLR: {{ bridge.icon_cells_per_plr.mean }}
+- median ICON cells per PLR: {{ bridge.icon_cells_per_plr.median }}
+- maximum ICON cells per PLR: {{ bridge.icon_cells_per_plr.max }}
+
+The generated bridge covered every PLR completely within numerical precision.
+
+## Profiling
+
+The bridge profiler records:
+
+- number of intersection rows
+- distinct PLR count
+- distinct ICON cell count
+- duplicate `(plr_id, cell_index)` pairs
+- intersection-area distribution
+- `fraction_of_plr` distribution
+- `fraction_of_icon_cell` distribution
+- number of ICON cells per PLR
+- sum of `fraction_of_plr` per PLR
+- total spatial coverage per PLR
+- missing source PLR IDs
+- unexpected PLR IDs
+- bridge ICON cells missing from the decoded ICON grid
+
+## Contracts
+
+The bridge contracts are:
+
+- required columns must exist
+- every current LOR PLR must appear in the bridge
+- every bridge `cell_index` must exist in the ICON grid
+- every bridge `plr_id` must exist in the LOR dataset
+- `(plr_id, cell_index)` pairs must be unique
+- intersection areas must be positive
+- `fraction_of_plr` must be greater than zero
+- `fraction_of_icon_cell` must be greater than zero
+- fractions must not exceed one beyond floating-point tolerance
+- `fraction_of_plr` must sum to approximately 1.0 for each PLR
+- summed intersection area must cover approximately 100% of each PLR
+
+A synthetic geometry unit test also verifies the area-weighting principle independently of the Berlin data by constructing a known geometry split and checking that the resulting fractions sum correctly.
+
+# NB: Floating-point behavior in spatial calculations
+Spatial intersection areas and ratios are represented using floating-point numbers. During bridge testing, at least one fraction failed a test because I used the exact comparisons `fraction <= 1`. I changed tests involving spatial ratios to use a small numerical tolerance instead of exact equality.
+
+
+# AfS population data
+## Source
+[Source link](https://daten.berlin.de/datensaetze/einwohnerinnen-und-einwohner-in-berlin-in-lor-planungsraumen-am-31-12-2025)
+
+The population data are provided by the Amt für Statistik Berlin-Brandenburg. It is a reference-date snapshot for **2025-12-31**, published on **2026-04-02**. It represents residents registered with their main residence (`Hauptwohnsitz`) in Berlin, rather than a census population or all persons physically present in the city.
+
+## Scope
+The population dataset contains Berlin population counts at the Planungsraum level. The current snapshot uses the reference code {{ afs_population.reference.zeit_values | join(", ") }}.
+
+The population file contains {{ "{:,}".format(afs_population.row_count) }} rows representing {{ "{:,}".format(afs_population.identity.distinct_raumid_count) }} distinct
+Planungsräume.
+
+Profile
+
+  ----------------------------------------------------------------------------------------------
+  Metric                                                                          Observed value
+  ------------------------------ ---------------------------------------------------------------
+  Rows                                             {{ "{:,}".format(afs_population.row_count) }}
+
+  Distinct Planungsräume         {{ "{:,}".format(afs_population.identity.distinct_raumid_count)
+                                                                                              }}
+
+  Duplicate RAUMID values                                                                     {{
+                                   "{:,}".format(afs_population.identity.duplicate_raumid_count)
+                                                                                              }}
+
+  Missing RAUMID values           {{ "{:,}".format(afs_population.identity.null_raumid_count) }}
+
+  Reference period (ZEIT)                             {{ afs_population.reference.zeit_values }}
+
+  Missing total population (E_E)             {{ "{:,}".format(afs_population.null_counts.E_E) }}
+
+  Missing age 65–79 (E_E65U80)          {{ "{:,}".format(afs_population.null_counts.E_E65U80) }}
+
+  Missing age 80+ (E_E80U110)          {{ "{:,}".format(afs_population.null_counts.E_E80U110) }}
+
+  Incomplete derived population   {{ "{:,}".format(afs_population.null_counts.population_65plus) }}
+  65+                                                                                         
+  ----------------------------------------------------------------------------------------------
+
+## Population aged 65 and above
+
+For this project, population aged 65 and above is derived as:
+
+`population_65plus = E_E65U80 + E_E80U110`
+
+Missing source values are deliberately not interpreted as zero. If either required age component is missing, `population_65plus` and `share_65plus` remain missing for that Planungsraum.
+
+{% if afs_population.rows_with_incomplete_65plus %}
+
+The current snapshot contains {{ afs_population.rows_with_incomplete_65plus | length }} Planungsräume for which the 65+ population cannot be calculated completely:
+
+| RAUMID | E_E65U80 | E_E80U110 |
+|---|---:|---:|
+{% for row in afs_population.rows_with_incomplete_65plus -%}
+| {{ row.RAUMID }} | {{ row.E_E65U80 if row.E_E65U80 is not none else "missing" }} | {{ row.E_E80U110 if row.E_E80U110 is not none else "missing" }} |
+{% endfor %}
+
+{% else %}
+All Planungsräume contain complete age-group values required to calculate population aged 65 and above.
+{% endif %}
+
+## Data contracts
+
+The following conditions are treated as contracts for the current AfS population snapshot:
+
+-   required source columns must exist;
+-   the file must contain 542 Planungsräume;
+-   RAUMID must be non-null, non-blank, and unique;
+-   the file must contain exactly one ZEIT reference period;
+-   the current snapshot must use reference code 202512;
+-   total population E_E must be present and non-negative;
+-   observed age-group counts must be non-negative;
+-   an observed age-group count cannot exceed the corresponding total population;
+-   derived population aged 65+ cannot exceed total population;
+-   derived share_65plus must lie between 0 and 1;
+-   missing age-group observations remain explicit rather than being replaced with zero.
+
+The two known missing E_E80U110 observations in the current source snapshot are retained as missing data. This prevents the downstream pipeline from incorrectly treating an unavailable age-group count as a population count of zero.
+
+# Source and temporal considerations
+The LOR geography and demographic observations have temporal meaning that must be preserved.
+
+The current LOR hierarchy has been valid since 2021-01-01, and official documentation warns that pre-2021 LOR geography differs from the current geography. Historical observations should therefore not be combined across LOR versions without checking compatibility.
+
+The AfS population data is a reference-date snapshot for **2025-12-31**, published on **2026-04-02**. It represents residents registered with their main residence (`Hauptwohnsitz`) in Berlin, rather than a census population or all persons physically present in the city.
+
+The broader source guidance therefore requires the pipeline to preserve identifiers, geography versions, reference dates, source URLs, publisher information, and retrieval provenance, and to validate unmatched LOR keys after joins.
+
+# Contract summary
+
+| Dataset | Contract | Current value / rule | Why it matters | Enforcement |
+|---|---|---|---|---|
+| LOR | PLR count | 542 | Current LOR geography-version expectation | pytest |
+| LOR | CRS | EPSG:25833 | Spatial area calculations require projected coordinates | profiler + pytest |
+| LOR | PLR identifier | non-null and unique | Required for joins and referential integrity | pytest |
+| LOR | Geometry | present, non-empty, valid, polygonal | Required for spatial operations | pytest |
+| ICON grid | Cell count | 542,040 | Must match temperature-field cardinality | pytest |
+| ICON grid | Vertex count | 272,089 | Grid-version structural expectation | pytest |
+| ICON grid | Connectivity | 3 valid vertices per cell | Required to reconstruct native triangles | pytest |
+| ICON T_2M | Cell count | 542,040 | One weather value per grid cell | runtime validation + pytest |
+| ICON T_2M | Cell ID | unique and non-null | Prevents ambiguous weather values | runtime validation + pytest |
+| ICON T_2M | Missing values | 9999 K / 9725.85 °C | Prevents sentinels contaminating statistics | profiler + validation + pytest |
+| ICON T_2M | Observed values | finite | Detects invalid decoded values | runtime validation + pytest |
+| ICON T_2M | Unit consistency | °C = K − 273.15 | Detects conversion/decoding errors | runtime validation + pytest |
+| ICON T_2M | Sanity range | 253–323 K | Detects extreme decoding/corruption errors | runtime validation + pytest |
+| ICON T_2M | Lead-zero time | run time = valid time | Confirms requested forecast step | pytest |
+| ICON ↔ PLR bridge | PLR coverage | all 542 PLRs | No Planungsraum may disappear from spatial allocation | profiler + pytest |
+| ICON ↔ PLR bridge | Referential integrity | all IDs exist in source datasets | Prevents broken joins | profiler + pytest |
+| ICON ↔ PLR bridge | Pair uniqueness | unique `(plr_id, cell_index)` | Prevents double counting | profiler + pytest |
+| ICON ↔ PLR bridge | Area | positive | Removes invalid intersections | pytest |
+| ICON ↔ PLR bridge | PLR weights | sum ≈ 1.0 | Required for valid weighted aggregation | profiler + pytest |
+| ICON ↔ PLR bridge | PLR area coverage | ≈ 100% | Ensures complete spatial representation | profiler + pytest |
+
+# Profiling reports
+
+Profiling outputs are persisted as JSON rather than existing only as console output.
+
+Current expected report structure:
+
+```{text}
+reports/
+└── profiling/
+    ├── lor_profile.json
+    ├── icon_grid_profile.json
+    ├── icon_t2m_<run>.json
+    ├── icon_plr_bridge_profile.json
+    └── afs_population_profile.json
+```
+
+This provides both:
+
+- human-inspectable output
+- machine-readable records that can later be surfaced through an orchestrator or monitoring layer
+
+Architecture 1 intentionally avoids introducing a separate profiling framework. The scripts and JSON files make the behavior directly visible to a reviewer.

@@ -1,0 +1,69 @@
+{
+  "dataset": "berlin_lor_planungsraum",
+  "input_feature_count": 542,
+  "schema": {
+    "columns": [
+      "id",
+      "plr_id",
+      "plr_name",
+      "bzr_id",
+      "bzr_name",
+      "pgr_id",
+      "pgr_name",
+      "bez",
+      "finhalt",
+      "stadtraum_id",
+      "stadtraum_name",
+      "stand",
+      "geometry"
+    ],
+    "dtypes": {
+      "id": "str",
+      "plr_id": "str",
+      "plr_name": "str",
+      "bzr_id": "str",
+      "bzr_name": "str",
+      "pgr_id": "str",
+      "pgr_name": "str",
+      "bez": "str",
+      "finhalt": "float64",
+      "stadtraum_id": "str",
+      "stadtraum_name": "str",
+      "stand": "str",
+      "geometry": "geometry"
+    }
+  },
+  "identity": {
+    "plr_id_column": "plr_id",
+    "distinct_plr_id_count": 542,
+    "duplicate_plr_id_count": 0,
+    "null_plr_id_count": 0
+  },
+  "geometry": {
+    "crs": "EPSG:25833",
+    "geometry_types": {
+      "MultiPolygon": 542
+    },
+    "null_geometry_count": 0,
+    "empty_geometry_count": 0,
+    "invalid_geometry_count": 0,
+    "total_bounds": {
+      "minx": 370000.825,
+      "miny": 5799520.66,
+      "maxx": 415786.553,
+      "maxy": 5837259.27
+    },
+    "area_m2": {
+      "min": 133571.10582463638,
+      "median": 810082.8703762663,
+      "max": 23725255.27154769,
+      "sum": 890666668.8611634
+    }
+  },
+  "hierarchy": {
+    "bezirk": {
+      "column": "bez",
+      "distinct_count": 12
+    }
+  }
+}

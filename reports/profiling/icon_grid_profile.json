@@ -1,0 +1,622 @@
+{
+  "dataset": "dwd_icon_d2_grid_0047_R19B07_L",
+  "cell_count": 542040,
+  "vertex_count": 272089,
+  "dimensions": {
+    "cell": 542040,
+    "vertex": 272089,
+    "edge": 814128,
+    "nc": 2,
+    "nv": 3,
+    "ne": 6,
+    "no": 4,
+    "max_chdom": 1,
+    "cell_grf": 14,
+    "edge_grf": 24,
+    "vert_grf": 13
+  },
+  "required_variables_present": [
+    "clon",
+    "clat",
+    "vlon",
+    "vlat",
+    "vertex_of_cell"
+  ],
+  "variables": {
+    "clon": {
+      "dtype": "float64",
+      "shape": [
+        542040
+      ],
+      "dimensions": [
+        "cell"
+      ]
+    },
+    "clat": {
+      "dtype": "float64",
+      "shape": [
+        542040
+      ],
+      "dimensions": [
+        "cell"
+      ]
+    },
+    "vlon": {
+      "dtype": "float64",
+      "shape": [
+        272089
+      ],
+      "dimensions": [
+        "vertex"
+      ]
+    },
+    "vlat": {
+      "dtype": "float64",
+      "shape": [
+        272089
+      ],
+      "dimensions": [
+        "vertex"
+      ]
+    },
+    "cartesian_x_vertices": {
+      "dtype": "float64",
+      "shape": [
+        272089
+      ],
+      "dimensions": [
+        "vertex"
+      ]
+    },
+    "cartesian_y_vertices": {
+      "dtype": "float64",
+      "shape": [
+        272089
+      ],
+      "dimensions": [
+        "vertex"
+      ]
+    },
+    "cartesian_z_vertices": {
+      "dtype": "float64",
+      "shape": [
+        272089
+      ],
+      "dimensions": [
+        "vertex"
+      ]
+    },
+    "elon": {
+      "dtype": "float64",
+      "shape": [
+        814128
+      ],
+      "dimensions": [
+        "edge"
+      ]
+    },
+    "elat": {
+      "dtype": "float64",
+      "shape": [
+        814128
+      ],
+      "dimensions": [
+        "edge"
+      ]
+    },
+    "cell_area": {
+      "dtype": "float64",
+      "shape": [
+        542040
+      ],
+      "dimensions": [
+        "cell"
+      ]
+    },
+    "dual_area": {
+      "dtype": "float64",
+      "shape": [
+        272089
+      ],
+      "dimensions": [
+        "vertex"
+      ]
+    },
+    "lon_cell_centre": {
+      "dtype": "float64",
+      "shape": [
+        542040
+      ],
+      "dimensions": [
+        "cell"
+      ]
+    },
+    "lat_cell_centre": {
+      "dtype": "float64",
+      "shape": [
+        542040
+      ],
+      "dimensions": [
+        "cell"
+      ]
+    },
+    "longitude_vertices": {
+      "dtype": "float64",
+      "shape": [
+        272089
+      ],
+      "dimensions": [
+        "vertex"
+      ]
+    },
+    "latitude_vertices": {
+      "dtype": "float64",
+      "shape": [
+        272089
+      ],
+      "dimensions": [
+        "vertex"
+      ]
+    },
+    "lon_edge_centre": {
+      "dtype": "float64",
+      "shape": [
+        814128
+      ],
+      "dimensions": [
+        "edge"
+      ]
+    },
+    "lat_edge_centre": {
+      "dtype": "float64",
+      "shape": [
+        814128
+      ],
+      "dimensions": [
+        "edge"
+      ]
+    },
+    "edge_of_cell": {
+      "dtype": "int32",
+      "shape": [
+        3,
+        542040
+      ],
+      "dimensions": [
+        "nv",
+        "cell"
+      ]
+    },
+    "vertex_of_cell": {
+      "dtype": "int32",
+      "shape": [
+        3,
+        542040
+      ],
+      "dimensions": [
+        "nv",
+        "cell"
+      ]
+    },
+    "adjacent_cell_of_edge": {
+      "dtype": "int32",
+      "shape": [
+        2,
+        814128
+      ],
+      "dimensions": [
+        "nc",
+        "edge"
+      ]
+    },
+    "edge_vertices": {
+      "dtype": "int32",
+      "shape": [
+        2,
+        814128
+      ],
+      "dimensions": [
+        "nc",
+        "edge"
+      ]
+    },
+    "cells_of_vertex": {
+      "dtype": "int32",
+      "shape": [
+        6,
+        272089
+      ],
+      "dimensions": [
+        "ne",
+        "vertex"
+      ]
+    },
+    "edges_of_vertex": {
+      "dtype": "int32",
+      "shape": [
+        6,
+        272089
+      ],
+      "dimensions": [
+        "ne",
+        "vertex"
+      ]
+    },
+    "vertices_of_vertex": {
+      "dtype": "int32",
+      "shape": [
+        6,
+        272089
+      ],
+      "dimensions": [
+        "ne",
+        "vertex"
+      ]
+    },
+    "cell_area_p": {
+      "dtype": "float64",
+      "shape": [
+        542040
+      ],
+      "dimensions": [
+        "cell"
+      ]
+    },
+    "dual_area_p": {
+      "dtype": "float64",
+      "shape": [
+        272089
+      ],
+      "dimensions": [
+        "vertex"
+      ]
+    },
+    "edge_length": {
+      "dtype": "float64",
+      "shape": [
+        814128
+      ],
+      "dimensions": [
+        "edge"
+      ]
+    },
+    "edge_cell_distance": {
+      "dtype": "float64",
+      "shape": [
+        2,
+        814128
+      ],
+      "dimensions": [
+        "nc",
+        "edge"
+      ]
+    },
+    "dual_edge_length": {
+      "dtype": "float64",
+      "shape": [
+        814128
+      ],
+      "dimensions": [
+        "edge"
+      ]
+    },
+    "edge_vert_distance": {
+      "dtype": "float64",
+      "shape": [
+        2,
+        814128
+      ],
+      "dimensions": [
+        "nc",
+        "edge"
+      ]
+    },
+    "zonal_normal_primal_edge": {
+      "dtype": "float64",
+      "shape": [
+        814128
+      ],
+      "dimensions": [
+        "edge"
+      ]
+    },
+    "meridional_normal_primal_edge": {
+      "dtype": "float64",
+      "shape": [
+        814128
+      ],
+      "dimensions": [
+        "edge"
+      ]
+    },
+    "zonal_normal_dual_edge": {
+      "dtype": "float64",
+      "shape": [
+        814128
+      ],
+      "dimensions": [
+        "edge"
+      ]
+    },
+    "meridional_normal_dual_edge": {
+      "dtype": "float64",
+      "shape": [
+        814128
+      ],
+      "dimensions": [
+        "edge"
+      ]
+    },
+    "orientation_of_normal": {
+      "dtype": "int32",
+      "shape": [
+        3,
+        542040
+      ],
+      "dimensions": [
+        "nv",
+        "cell"
+      ]
+    },
+    "clon_vertices": {
+      "dtype": "float64",
+      "shape": [
+        542040,
+        3
+      ],
+      "dimensions": [
+        "cell",
+        "nv"
+      ]
+    },
+    "clat_vertices": {
+      "dtype": "float64",
+      "shape": [
+        542040,
+        3
+      ],
+      "dimensions": [
+        "cell",
+        "nv"
+      ]
+    },
+    "elon_vertices": {
+      "dtype": "float64",
+      "shape": [
+        814128,
+        4
+      ],
+      "dimensions": [
+        "edge",
+        "no"
+      ]
+    },
+    "elat_vertices": {
+      "dtype": "float64",
+      "shape": [
+        814128,
+        4
+      ],
+      "dimensions": [
+        "edge",
+        "no"
+      ]
+    },
+    "vlon_vertices": {
+      "dtype": "float64",
+      "shape": [
+        272089,
+        6
+      ],
+      "dimensions": [
+        "vertex",
+        "ne"
+      ]
+    },
+    "vlat_vertices": {
+      "dtype": "float64",
+      "shape": [
+        272089,
+        6
+      ],
+      "dimensions": [
+        "vertex",
+        "ne"
+      ]
+    },
+    "quadrilateral_area": {
+      "dtype": "float64",
+      "shape": [
+        814128
+      ],
+      "dimensions": [
+        "edge"
+      ]
+    },
+    "parent_cell_index": {
+      "dtype": "int32",
+      "shape": [
+        542040
+      ],
+      "dimensions": [
+        "cell"
+      ]
+    },
+    "neighbor_cell_index": {
+      "dtype": "int32",
+      "shape": [
+        3,
+        542040
+      ],
+      "dimensions": [
+        "nv",
+        "cell"
+      ]
+    },
+    "edge_orientation": {
+      "dtype": "int32",
+      "shape": [
+        6,
+        272089
+      ],
+      "dimensions": [
+        "ne",
+        "vertex"
+      ]
+    },
+    "edge_system_orientation": {
+      "dtype": "int32",
+      "shape": [
+        814128
+      ],
+      "dimensions": [
+        "edge"
+      ]
+    },
+    "refin_c_ctrl": {
+      "dtype": "int32",
+      "shape": [
+        542040
+      ],
+      "dimensions": [
+        "cell"
+      ]
+    },
+    "start_idx_c": {
+      "dtype": "int32",
+      "shape": [
+        1,
+        14
+      ],
+      "dimensions": [
+        "max_chdom",
+        "cell_grf"
+      ]
+    },
+    "end_idx_c": {
+      "dtype": "int32",
+      "shape": [
+        1,
+        14
+      ],
+      "dimensions": [
+        "max_chdom",
+        "cell_grf"
+      ]
+    },
+    "refin_e_ctrl": {
+      "dtype": "int32",
+      "shape": [
+        814128
+      ],
+      "dimensions": [
+        "edge"
+      ]
+    },
+    "start_idx_e": {
+      "dtype": "int32",
+      "shape": [
+        1,
+        24
+      ],
+      "dimensions": [
+        "max_chdom",
+        "edge_grf"
+      ]
+    },
+    "end_idx_e": {
+      "dtype": "int32",
+      "shape": [
+        1,
+        24
+      ],
+      "dimensions": [
+        "max_chdom",
+        "edge_grf"
+      ]
+    },
+    "refin_v_ctrl": {
+      "dtype": "int32",
+      "shape": [
+        272089
+      ],
+      "dimensions": [
+        "vertex"
+      ]
+    },
+    "start_idx_v": {
+      "dtype": "int32",
+      "shape": [
+        1,
+        13
+      ],
+      "dimensions": [
+        "max_chdom",
+        "vert_grf"
+      ]
+    },
+    "end_idx_v": {
+      "dtype": "int32",
+      "shape": [
+        1,
+        13
+      ],
+      "dimensions": [
+        "max_chdom",
+        "vert_grf"
+      ]
+    },
+    "parent_edge_index": {
+      "dtype": "int32",
+      "shape": [
+        814128
+      ],
+      "dimensions": [
+        "edge"
+      ]
+    },
+    "parent_vertex_index": {
+      "dtype": "int32",
+      "shape": [
+        272089
+      ],
+      "dimensions": [
+        "vertex"
+      ]
+    }
+  },
+  "cell_centers": {
+    "longitude_deg": {
+      "min": -4.161636339446981,
+      "max": 20.5444348579294
+    },
+    "latitude_deg": {
+      "min": 43.04405139295364,
+      "max": 58.16465027414913
+    },
+    "nan_longitude_count": 0,
+    "nan_latitude_count": 0
+  },
+  "vertices": {
+    "longitude_deg": {
+      "min": -4.187935584054801,
+      "max": 20.574714723404007
+    },
+    "latitude_deg": {
+      "min": 43.03486564875945,
+      "max": 58.174259004907945
+    },
+    "nan_longitude_count": 0,
+    "nan_latitude_count": 0
+  },
+  "connectivity": {
+    "normalized_shape": [
+      542040,
+      3
+    ],
+    "vertices_per_cell": 3,
+    "min_vertex_index": 0,
+    "max_vertex_index": 272088,
+    "unique_vertices_referenced": 272089
+  }
+}

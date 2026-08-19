@@ -92,49 +92,6 @@ def profile_lor(plr: gpd.GeoDataFrame) -> dict[str, Any]:
         },
     }
 
-    if plr.crs is not None and len(plr) > 0:
-        minx, miny, maxx, maxy = plr.total_bounds
-        profile["geometry"]["total_bounds"] = {
-            "minx": float(minx),
-            "miny": float(miny),
-            "maxx": float(maxx),
-            "maxy": float(maxy),
-        }
-
-        try:
-            if plr.crs.is_projected:
-                areas = geometry.dropna().area
-                if len(areas) > 0:
-                    profile["geometry"]["area_m2"] = {
-                        "min": float(areas.min()),
-                        "median": float(areas.median()),
-                        "max": float(areas.max()),
-                        "sum": float(areas.sum()),
-                    }
-        except Exception:
-            pass
-
-    hierarchy_candidates = {
-        "bezirk": ["BEZ", "bez", "BEZIRK", "bezirk"],
-        "pgr": ["PGR", "pgr"],
-        "bzr": ["BZR", "bzr"],
-        "plr": ["PLR", "plr"],
-    }
-
-    hierarchy: dict[str, Any] = {}
-
-    for level, candidates in hierarchy_candidates.items():
-        for column in candidates:
-            if column in plr.columns:
-                hierarchy[level] = {
-                    "column": column,
-                    "distinct_count": int(plr[column].nunique(dropna=True)),
-                }
-                break
-
-    if hierarchy:
-        profile["hierarchy"] = hierarchy
-
     return profile
 
 

@@ -191,35 +191,9 @@ def profile_icon_grid(nc_path: Path) -> dict[str, Any]:
         "dimensions": dimensions,
         "required_variables_present": list(REQUIRED_VARIABLES),
         "variables": variables,
-        "cell_centers": {
-            "longitude_deg": {
-                "min": float(np.nanmin(clon_deg)),
-                "max": float(np.nanmax(clon_deg)),
-            },
-            "latitude_deg": {
-                "min": float(np.nanmin(clat_deg)),
-                "max": float(np.nanmax(clat_deg)),
-            },
-            "nan_longitude_count": int(np.isnan(clon_deg).sum()),
-            "nan_latitude_count": int(np.isnan(clat_deg).sum()),
-        },
-        "vertices": {
-            "longitude_deg": {
-                "min": float(np.nanmin(vlon_deg)),
-                "max": float(np.nanmax(vlon_deg)),
-            },
-            "latitude_deg": {
-                "min": float(np.nanmin(vlat_deg)),
-                "max": float(np.nanmax(vlat_deg)),
-            },
-            "nan_longitude_count": int(np.isnan(vlon_deg).sum()),
-            "nan_latitude_count": int(np.isnan(vlat_deg).sum()),
-        },
         "connectivity": {
             "normalized_shape": list(connectivity.shape),
             "vertices_per_cell": int(connectivity.shape[1]),
-            "min_vertex_index": int(connectivity.min()),
-            "max_vertex_index": int(connectivity.max()),
             "unique_vertices_referenced": int(
                 np.unique(connectivity).size
             ),
@@ -295,21 +269,6 @@ def main() -> None:
     print(
         f"Connectivity shape:  "
         f"{profile['connectivity']['normalized_shape']}"
-    )
-    print(
-        f"Vertex index range:  "
-        f"{profile['connectivity']['min_vertex_index']:,} – "
-        f"{profile['connectivity']['max_vertex_index']:,}"
-    )
-    print(
-        f"Cell lon range:      "
-        f"{profile['cell_centers']['longitude_deg']['min']:.3f} – "
-        f"{profile['cell_centers']['longitude_deg']['max']:.3f}"
-    )
-    print(
-        f"Cell lat range:      "
-        f"{profile['cell_centers']['latitude_deg']['min']:.3f} – "
-        f"{profile['cell_centers']['latitude_deg']['max']:.3f}"
     )
     print(f"Profile written to:  {args.output_file}")
 

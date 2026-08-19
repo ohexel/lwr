@@ -1,0 +1,53 @@
+{
+  "dataset": "dwd_icon_d2_ruc_t2m",
+  "row_count": 542040,
+  "distinct_cell_count": 542040,
+  "duplicate_cell_index_count": 0,
+  "null_counts": {
+    "cell_index": 0,
+    "run_time_utc": 0,
+    "temperature_c": 0,
+    "temperature_k": 0,
+    "valid_time_utc": 0
+  },
+  "run_time_utc": "2026-08-13T16:00:00+00:00",
+  "valid_time_utc": "2026-08-13T16:00:00+00:00",
+  "distinct_run_time_count": 1,
+  "distinct_valid_time_count": 1,
+  "missing_temperature": {
+    "sentinel_temperature_k": 9999.0,
+    "sentinel_temperature_c": 9725.85,
+    "missing_row_count": 16968,
+    "missing_share": 0.0313039628071729
+  },
+  "observed_temperature_k": {
+    "min": 275.5625,
+    "max": 313.5888671875,
+    "mean": 300.51390370890505,
+    "median": 300.68359375,
+    "std": 6.633405224338809
+  },
+  "observed_temperature_c": {
+    "min": 2.4125000000000227,
+    "max": 40.43886718750002,
+    "mean": 27.363903708905063,
+    "median": 27.533593750000023,
+    "std": 6.633405224338809
+  },
+  "non_finite_observed_temperature_k_count": 0,
+  "non_finite_observed_temperature_c_count": 0,
+  "lead_time_minutes": 0,
+  "berlin_intersection_subset": {
+    "expected_relevant_cell_count": 259,
+    "matched_cell_count": 259,
+    "missing_relevant_cell_count": 0,
+    "missing_temperature_row_count": 0,
+    "observed_temperature_c": {
+      "min": 26.490625000000023,
+      "max": 27.740625000000023,
+      "mean": 27.163857384169905,
+      "median": 27.151757812500023,
+      "std": 0.24724001348362787
+    }
+  }
+}
