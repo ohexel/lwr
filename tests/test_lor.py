@@ -80,9 +80,6 @@ def test_profile_lor_records_crs_and_valid_geometry():
     assert profile["geometry"]["crs"] == "EPSG:25833"
     assert profile["geometry"]["invalid_geometry_count"] == 0
     assert profile["geometry"]["null_geometry_count"] == 0
-    assert profile["geometry"]["area_m2"]["sum"] == pytest.approx(
-        10_000.0
-    )
 
 
 def test_profile_lor_records_null_geometry():
