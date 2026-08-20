@@ -1,12 +1,10 @@
 import requests
 import dagster as dg
 
-from src.dagster_pipeline.assets.icon_d2_ruc import (
-    ALL_ICON_D2_RUC_ASSETS,
-)
+from src.dagster_pipeline.jobs import ICON_D2_RUC_WEATHER_JOB
 from src.dagster_pipeline.partitions import (
     WEATHER_LEAD_TIMES,
-    WEATHER_PARTITION_START,
+    WEATHER_HISTORY_START,
     weather_partition_key,
 )
 from src.dwd_icon_d2_ruc import (
@@ -15,22 +13,13 @@ from src.dwd_icon_d2_ruc import (
 )
 from src.dwd_weather_availability import (
     find_ready_weather_forecast,
+    dwd_polling_window_open
 )
 
 
 RUN_DISCOVERY_INDICATOR = "T_2M"
 SENSOR_MAX_RUN_TIMES = 6
-SENSOR_MINIMUM_INTERVAL_SECONDS = 60
-
-
-ICON_D2_RUC_WEATHER_JOB = dg.define_asset_job(
-    name="icon_d2_ruc_weather_ingestion",
-    selection=ALL_ICON_D2_RUC_ASSETS,
-    description=(
-        "Materialize the five raw and five normalized "
-        "ICON D2 RUC weather assets for one forecast partition."
-    ),
-)
+SENSOR_MINIMUM_INTERVAL_SECONDS = 300
 
 
 def weather_sensor_run_key(forecast) -> str:
@@ -98,6 +87,10 @@ def _skip_reason_for_decision(
     ),
 )
 def dwd_icon_d2_ruc_availability_sensor(context):
+    if not dwd_polling_window_open():
+        return dg.SkipReason(
+                "Outside DWD polling window (:30-:59 each hour)"
+                )
     try:
         with make_session() as session:
             run_times = advertised_run_times(
@@ -120,7 +113,7 @@ def dwd_icon_d2_ruc_availability_sensor(context):
                         WEATHER_LEAD_TIMES
                     ),
                     minimum_run_time=(
-                        WEATHER_PARTITION_START
+                        WEATHER_HISTORY_START
                     ),
                     max_run_times=(
                         SENSOR_MAX_RUN_TIMES
@@ -138,36 +131,39 @@ def dwd_icon_d2_ruc_availability_sensor(context):
             f"because of a network/HTTP error: {exc}"
         )
 
-    if decision.ready is None:
-        return _skip_reason_for_decision(
-            decision
+    if not decision.ready:
+        return _skip_reason_for_decision(decision)
+
+    run_requests = []
+
+    for availability in decision.ready:
+        forecast = decision.ready.forecast
+        partition_key = weather_partition_key(forecast)
+        run_key = weather_sensor_run_key(forecast)
+
+        run_key = weather_sensor_run_key(forecast)
+
+        context.log.info(
+            "Complete DWD weather partition ready: "
+            "%s × %s",
+            forecast.run_label,
+            forecast.lead_time_label,
         )
 
-    forecast = decision.ready.forecast
-    partition_key = weather_partition_key(
-        forecast
-    )
-    run_key = weather_sensor_run_key(
-        forecast
-    )
+        run_requests.append(
+            dg.RunRequest(
+                run_key=run_key,
+                partition_key=partition_key,
+                tags={
+                    "source": "dwd_icon_d2_ruc",
+                    "forecast_run_time": (
+                        forecast.run_label
+                    ),
+                    "forecast_lead_time": (
+                        forecast.lead_time_label
+                    ),
+                },
+            )
+        )
 
-    context.log.info(
-        "Complete DWD weather partition ready: "
-        "%s × %s",
-        forecast.run_label,
-        forecast.lead_time_label,
-    )
-
-    return dg.RunRequest(
-        run_key=run_key,
-        partition_key=partition_key,
-        tags={
-            "source": "dwd_icon_d2_ruc",
-            "forecast_run_time": (
-                forecast.run_label
-            ),
-            "forecast_lead_time": (
-                forecast.lead_time_label
-            ),
-        },
-    )
+    return dg.SensorResult( run_requests = run_requests )

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Callable, Iterable, Sequence
 
 import requests
@@ -32,11 +32,15 @@ class ForecastAvailability:
 
 @dataclass(frozen=True)
 class WeatherAvailabilityDecision:
-    ready: ForecastAvailability | None
+    ready: tuple[ForecastAvailability, ...]
     latest_incomplete: ForecastAvailability | None
     checked_forecasts: int
     already_normalized_forecasts: int
 
+def dwd_polling_window_open( now: datetime | None = None ) -> bool:
+    if now is None:
+        now = datetime.now(timezone.utc)
+    return 30 <= now.minute <= 59
 
 def normalized_weather_partition_complete(
     forecast: ForecastKey,
@@ -95,7 +99,7 @@ def check_forecast_availability(
     )
 
 
-def find_ready_weather_forecast(
+def find_ready_weather_forecasts(
     session: requests.Session,
     *,
     advertised_run_times: Iterable[datetime],
@@ -128,6 +132,7 @@ def find_ready_weather_forecast(
         reverse=True,
     )[:max_run_times]
 
+    read: list[ForecastAvailability] = []
     latest_incomplete = None
     checked = 0
     already_normalized = 0
@@ -158,22 +163,14 @@ def find_ready_weather_forecast(
             )
 
             if availability.complete:
-                return WeatherAvailabilityDecision(
-                    ready=availability,
-                    latest_incomplete=(
-                        latest_incomplete
-                    ),
-                    checked_forecasts=checked,
-                    already_normalized_forecasts=(
-                        already_normalized
-                    ),
-                )
+                ready.append(availability)
+                continue
 
             if latest_incomplete is None:
                 latest_incomplete = availability
 
     return WeatherAvailabilityDecision(
-        ready=None,
+        ready=tuple(ready),
         latest_incomplete=latest_incomplete,
         checked_forecasts=checked,
         already_normalized_forecasts=(

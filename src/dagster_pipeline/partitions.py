@@ -12,10 +12,10 @@ from src.forecast_key import (
 
 RUN_TIME_PARTITION_FORMAT = "%Y%m%dT%H%M"
 
-# Architecture 2 begins from the period already used by the capstone
-# pipeline. Moving this earlier later is possible, but it should be a
-# deliberate project-data decision rather than an implicit Dagster default.
-WEATHER_PARTITION_START = datetime(
+# This tells Dagster the earliest canonical date that data could theoretically
+# have. If we requested a partition with an earlier date, Dagster would not
+# recognize it. This is independent from DWD ICON D2 RUC's rolling 24h window.
+WEATHER_HISTORY_START = datetime(
     2026,
     8,
     13,
@@ -24,16 +24,22 @@ WEATHER_PARTITION_START = datetime(
     tzinfo=timezone.utc,
 )
 
-# The MVP requests lead zero only. Keeping lead time as its own
-# partition dimension now means adding PT012H00M later is a small
-# configuration change rather than a partition-model redesign.
+# DWD ICON D2 RUC provides 28 lead time forecasts from 0 to 27 hours. I restrict
+# accepted lead times (i.e. partition dimensions) to a smaller set because there
+# is no business reasons to indiscriminately grab all data. Which lead
+# times/data we collect, should be grounded in business logic.
 WEATHER_LEAD_TIMES = (
     "PT000H00M",
+    "PT001H00M",
+    "PT002H00M",
+    "PT006H00M",
+    "PT012H00M",
+    "PT024H00M",
 )
 
 
 RUN_TIME_PARTITIONS = dg.HourlyPartitionsDefinition(
-    start_date=WEATHER_PARTITION_START,
+    start_date=WEATHER_HISTORY_START,
     timezone="UTC",
     fmt=RUN_TIME_PARTITION_FORMAT,
     end_offset = 1
