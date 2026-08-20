@@ -1,5 +1,8 @@
 # Project files
 data/
+reports/generated/
+reports/profiling/
+reports/rendered/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

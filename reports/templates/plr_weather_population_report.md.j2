@@ -1,0 +1,61 @@
+# Berlin PLR weather and older-population exposure
+
+**Forecast run:** {{ run_time_utc }} UTC  
+**Lead time:** {{ lead_time }}  
+**Valid time:** {{ valid_time_utc }} UTC  
+**Generated from:** `{{ source_path }}`
+
+## Scope
+
+This report ranks Berlin Planungsräume by the selected ICON D2 2 m air
+temperature field and shows available resident population context.
+
+It does **not** claim to measure heat risk or unusually hot conditions.
+
+## Dataset status
+
+| Measure | Value |
+| --- | ---: |
+| PLR rows | {{ row_count }} |
+| Unique PLRs | {{ unique_plr_count }} |
+| Population available | {{ available_count }} |
+| Population source records rejected | {{ rejected_count }} |
+
+{% if rejection_reason_counts %}
+### Population rejection reasons
+
+| Reason | Count |
+| --- | ---: |
+{% for reason, count in rejection_reason_counts %}
+| {{ reason }} | {{ count }} |
+{% endfor %}
+{% endif %}
+
+## Hottest PLRs
+
+| Rank | PLR | Temperature °C | Relative humidity % | Population total | Population 65+ | Share 65+ | Population status |
+| ---: | --- | ---: | ---: | ---: | ---: | ---: | --- |
+{% for row in hottest %}
+| {{ row.rank }} | {{ row.plr_id }} | {{ row.temperature_c }} | {{ row.relative_humidity_percent }} | {{ row.population_total }} | {{ row.population_65plus }} | {{ row.share_65plus }} | {{ row.population_status }} |
+{% endfor %}
+
+## Population exceptions
+
+{% if population_exceptions %}
+| PLR | Status | Rejection reason |
+| --- | --- | --- |
+{% for row in population_exceptions %}
+| {{ row.plr_id }} | {{ row.population_status }} | {{ row.population_rejection_reason }} |
+{% endfor %}
+{% else %}
+No population exceptions are present in this partition.
+{% endif %}
+
+## Interpretation
+
+The ranking is an area-weighted PLR view of the selected ICON D2
+forecast partition. Population figures are shown only where the
+population source record passed the project's quality gate.
+
+Rejected population records remain in the final analytical dataset with
+explicit status and reason fields instead of being imputed as zero.

@@ -1,28 +1,5 @@
+# Known bugs
+## Interaction between dagster context and `__future__.annotations`
+**Problem**: If you use `from __future__ import annotations`, Python stores `context: dg.AssetCheckExecutionContext` as a string annotation. Dagster 1.13.15 then fails to recognize it as the valid context type.
 
-# Running profiling and tests
-
-From the project root:
-
-```{bash}
-uv run python -m src.profile_lor
-uv run python -m src.profile_icon_grid
-uv run python -m src.profile_icon_t2m
-uv run python -m src.profile_icon_plr_bridge
-uv run python -m src.profile_afs_population
-```
-
-Run the complete test suite with:
-
-```{bash}
-uv run python -m pytest -v
-```
-
-Individual test modules can also be run separately:
-
-```{bash}
-uv run python -m pytest tests/test_lor.py -v
-uv run python -m pytest tests/test_icon_grid.py -v
-uv run python -m pytest tests/test_icon_t2m.py -v
-uv run python -m pytest tests/test_icon_plr_bridge.py -v
-uv run python -m pytest tests/test_afs_population.py -v
-```
+**Solution**: Do not use `from __future__ import annotations` in modules containing `@dg.asset`, `@dg.asset_check`, `@sensor`, or similar Dagster-decorated functions whose context parameters are type-annotated.
