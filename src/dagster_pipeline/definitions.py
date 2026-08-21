@@ -14,6 +14,18 @@ from src.dagster_pipeline.assets.plr_weather import plr_weather
 from src.dagster_pipeline.assets.plr_weather_population import plr_weather_population
 # This imports the check functions as an asset from src/dagster_pipeline/checks
 from src.dagster_pipeline.checks.plr_weather_population import FINAL_ANALYTICAL_ASSET_CHECKS
+from src.dagster_pipeline.assets.database_population import (
+        ARCHITECTURE_3_POPULATION_ASSETS
+        )
+from src.dagster_pipeline.assets.database_spatial import (
+        ARCHITECTURE_3_SPATIAL_ASSETS
+        )
+from src.dagster_pipeline.checks.database_population import (
+        ARCHITECTURE_3_POPULATION_CHECKS
+        )
+from src.dagster_pipeline.checks.database_spatial import (
+        ARCHITECTURE_3_SPATIAL_CHECKS
+        )
 
 
 defs = dg.Definitions(
@@ -23,9 +35,13 @@ defs = dg.Definitions(
         plr_population_quality_gate,
         plr_weather,
         plr_weather_population,
+        *ARCHITECTURE_3_POPULATION_ASSETS,
+        *ARCHITECTURE_3_SPATIAL_ASSETS
     ],
     asset_checks=[
         *FINAL_ANALYTICAL_ASSET_CHECKS,
+        *ARCHITECTURE_3_POPULATION_CHECKS,
+        *ARCHITECTURE_3_SPATIAL_CHECKS
     ],
     jobs=[
         ICON_D2_RUC_RAW_ACQUISITION_JOB,
