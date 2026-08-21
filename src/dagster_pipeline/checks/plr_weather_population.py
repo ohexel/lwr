@@ -126,7 +126,7 @@ def population_exceptions_explained(
     # Recast as native booleans because Dagster does not recognize numpy booleans in metadata
     available_complete = bool(available_complete)
     rejected_metrics_missing = bool(rejected_metrics_missing)
-    rejected_reasons_present = bool(rejected_metrics_missing)
+    rejected_reasons_present = bool(rejected_metrics_present)
 
     passed = (
         actual_statuses <= allowed_statuses

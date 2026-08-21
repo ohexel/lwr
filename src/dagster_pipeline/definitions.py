@@ -1,8 +1,5 @@
 import dagster as dg
-from src.dagster_pipeline.assets.icon_d2_ruc import (
-        ALL_ICON_D2_RUC_ASSETS,
-        RAW_ICON_D2_RUC_ASSETS
-        )
+from src.dagster_pipeline.assets.icon_d2_ruc import ALL_ICON_D2_RUC_ASSETS
 from src.dagster_pipeline.sensors.dwd_weather import dwd_icon_d2_ruc_availability_sensor
 from src.dagster_pipeline.assets.icon_plr_area_bridge import icon_plr_area_bridge
 from src.dagster_pipeline.jobs import (
@@ -22,7 +19,6 @@ from src.dagster_pipeline.checks.plr_weather_population import FINAL_ANALYTICAL_
 defs = dg.Definitions(
     assets=[
         *ALL_ICON_D2_RUC_ASSETS,
-        *RAW_ICON_D2_RUC_ASSETS,
         icon_plr_area_bridge,
         plr_population_quality_gate,
         plr_weather,
@@ -36,6 +32,6 @@ defs = dg.Definitions(
         ICON_D2_RUC_WEATHER_JOB,
         FINAL_ANALYTICAL_CHECK_JOB
         ],
-    sensors=[dwd_icon_d2_ruc_availability_sensor],
+    sensors = [ dwd_icon_d2_ruc_availability_sensor ],
 )
 

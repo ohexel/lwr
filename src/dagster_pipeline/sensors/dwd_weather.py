@@ -89,8 +89,8 @@ def _skip_reason_for_decision(
     ),
     default_status=dg.DefaultSensorStatus.STOPPED,
     description=(
-        "Poll DWD ICON D2 RUC and launch one weather "
-        "partition only after all five required fields "
+        "Poll DWD ICON D2 RUC and launch one or more weather "
+        "partition(s) only after all five required fields "
         "are available for the same run time and lead time."
     ),
 )
