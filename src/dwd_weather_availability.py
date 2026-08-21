@@ -132,7 +132,7 @@ def find_ready_weather_forecasts(
         reverse=True,
     )[:max_run_times]
 
-    read: list[ForecastAvailability] = []
+    ready: list[ForecastAvailability] = []
     latest_incomplete = None
     checked = 0
     already_normalized = 0

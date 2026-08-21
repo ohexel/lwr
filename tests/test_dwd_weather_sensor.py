@@ -1,17 +1,17 @@
 from datetime import datetime, timezone
+from types import SimpleNamespace
 
 import dagster as dg
+import pytest
 
-from src.dagster_pipeline.sensors import (
-    dwd_weather,
-)
+from src.dagster_pipeline.definitions import defs
+from src.dagster_pipeline.sensors import dwd_weather
 from src.dwd_weather_availability import (
     ForecastAvailability,
     WeatherAvailabilityDecision,
 )
 from src.forecast_key import ForecastKey
 
-from src.dagster_pipeline.definitions import defs
 
 class FakeSession:
     def __enter__(self):
@@ -26,16 +26,29 @@ class FakeSession:
         return False
 
 
-def _forecast() -> ForecastKey:
+@pytest.fixture
+def sensor_instance():
+    with dg.DagsterInstance.ephemeral() as instance:
+        yield instance
+
+
+def _forecast(
+    lead_time: str = "PT000H00M",
+) -> ForecastKey:
     return ForecastKey.from_dwd_labels(
         run_time="2026-08-19T15:00",
-        lead_time="PT000H00M",
+        lead_time=lead_time,
     )
 
 
 def _patch_run_discovery(
     monkeypatch,
 ):
+    monkeypatch.setattr(
+        dwd_weather,
+        "dwd_polling_window_open",
+        lambda: True,
+    )
     monkeypatch.setattr(
         dwd_weather,
         "make_session",
@@ -56,14 +69,35 @@ def _patch_run_discovery(
     )
 
 
+def _patch_previous_runs(
+    monkeypatch,
+    runs,
+):
+    monkeypatch.setattr(
+        dg.DagsterInstance,
+        "get_runs",
+        lambda self, *args, **kwargs: runs,
+    )
+
+
+def _sensor_context(
+    instance: dg.DagsterInstance,
+):
+    return dg.build_sensor_context(
+        instance=instance,
+        repository_def=defs.get_repository_def(),
+    )
+
+
 def test_sensor_incomplete_partition_has_no_run_request(
     monkeypatch,
+    sensor_instance,
 ):
     _patch_run_discovery(monkeypatch)
     forecast = _forecast()
 
     decision = WeatherAvailabilityDecision(
-        ready=None,
+        ready=(),
         latest_incomplete=(
             ForecastAvailability(
                 forecast=forecast,
@@ -78,18 +112,16 @@ def test_sensor_incomplete_partition_has_no_run_request(
 
     monkeypatch.setattr(
         dwd_weather,
-        "find_ready_weather_forecast",
+        "find_ready_weather_forecasts",
         lambda *args, **kwargs: decision,
     )
-
-    repository_def = defs.get_repository_def()
 
     tick = (
         dwd_weather
         .dwd_icon_d2_ruc_availability_sensor
         .evaluate_tick(
-            dg.build_sensor_context(
-                repository_def = repository_def
+            _sensor_context(
+                sensor_instance
             )
         )
     )
@@ -98,51 +130,75 @@ def test_sensor_incomplete_partition_has_no_run_request(
     assert "U_10M" in tick.skip_message
 
 
-def test_sensor_complete_partition_returns_exactly_one_run_request(
+def test_sensor_emits_all_ready_partitions_as_first_attempts(
     monkeypatch,
+    sensor_instance,
 ):
     _patch_run_discovery(monkeypatch)
-    forecast = _forecast()
+
+    lead_zero = _forecast(
+        "PT000H00M"
+    )
+    lead_one = _forecast(
+        "PT001H00M"
+    )
 
     decision = WeatherAvailabilityDecision(
-        ready=ForecastAvailability(
-            forecast=forecast,
-            missing_indicators=(),
+        ready=(
+            ForecastAvailability(
+                forecast=lead_zero,
+                missing_indicators=(),
+            ),
+            ForecastAvailability(
+                forecast=lead_one,
+                missing_indicators=(),
+            ),
         ),
         latest_incomplete=None,
-        checked_forecasts=1,
+        checked_forecasts=2,
         already_normalized_forecasts=0,
     )
 
     monkeypatch.setattr(
         dwd_weather,
-        "find_ready_weather_forecast",
+        "find_ready_weather_forecasts",
         lambda *args, **kwargs: decision,
     )
 
-    sensor = (
+    _patch_previous_runs(
+        monkeypatch,
+        [],
+    )
+
+    tick = (
         dwd_weather
         .dwd_icon_d2_ruc_availability_sensor
-    )
-
-    repository_def = defs.get_repository_def()
-
-    first_tick = sensor.evaluate_tick(
-        dg.build_sensor_context(
-            repository_def = repository_def
-        )
-    )
-    second_tick = sensor.evaluate_tick(
-        dg.build_sensor_context(
-            repository_def = repository_def
+        .evaluate_tick(
+            _sensor_context(
+                sensor_instance
+            )
         )
     )
 
-    assert len(first_tick.run_requests) == 1
+    assert len(tick.run_requests) == 2
 
-    request = first_tick.run_requests[0]
+    requests_by_lead = {
+        request.tags[
+            "forecast_lead_time"
+        ]: request
+        for request in tick.run_requests
+    }
 
-    assert request.partition_key == (
+    assert set(requests_by_lead) == {
+        "PT000H00M",
+        "PT001H00M",
+    }
+
+    zero_request = requests_by_lead[
+        "PT000H00M"
+    ]
+
+    assert zero_request.partition_key == (
         dg.MultiPartitionKey(
             {
                 "run_time": (
@@ -155,16 +211,197 @@ def test_sensor_complete_partition_returns_exactly_one_run_request(
         )
     )
 
+    assert zero_request.run_key == (
+        "dwd_icon_d2_ruc:"
+        "20260819T1500:"
+        "PT000H00M:"
+        "attempt_1"
+    )
+    assert (
+        zero_request.tags["attempt"]
+        == "1"
+    )
+
+    one_request = requests_by_lead[
+        "PT001H00M"
+    ]
+
+    assert one_request.run_key == (
+        "dwd_icon_d2_ruc:"
+        "20260819T1500:"
+        "PT001H00M:"
+        "attempt_1"
+    )
+    assert (
+        one_request.tags["attempt"]
+        == "1"
+    )
+
+
+def test_sensor_retries_failed_partition_with_new_attempt(
+    monkeypatch,
+    sensor_instance,
+):
+    _patch_run_discovery(monkeypatch)
+    forecast = _forecast()
+
+    decision = WeatherAvailabilityDecision(
+        ready=(
+            ForecastAvailability(
+                forecast=forecast,
+                missing_indicators=(),
+            ),
+        ),
+        latest_incomplete=None,
+        checked_forecasts=1,
+        already_normalized_forecasts=0,
+    )
+
+    monkeypatch.setattr(
+        dwd_weather,
+        "find_ready_weather_forecasts",
+        lambda *args, **kwargs: decision,
+    )
+
+    _patch_previous_runs(
+        monkeypatch,
+        [
+            SimpleNamespace(
+                status=(
+                    dg.DagsterRunStatus.FAILURE
+                )
+            )
+        ],
+    )
+
+    tick = (
+        dwd_weather
+        .dwd_icon_d2_ruc_availability_sensor
+        .evaluate_tick(
+            _sensor_context(
+                sensor_instance
+            )
+        )
+    )
+
+    assert len(tick.run_requests) == 1
+
+    request = tick.run_requests[0]
+
     assert request.run_key == (
         "dwd_icon_d2_ruc:"
         "20260819T1500:"
-        "PT000H00M"
+        "PT000H00M:"
+        "attempt_2"
+    )
+    assert request.tags["attempt"] == "2"
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        dg.DagsterRunStatus.STARTED,
+        dg.DagsterRunStatus.SUCCESS,
+    ],
+)
+def test_sensor_does_not_duplicate_active_or_successful_partition(
+    monkeypatch,
+    sensor_instance,
+    status,
+):
+    _patch_run_discovery(monkeypatch)
+    forecast = _forecast()
+
+    decision = WeatherAvailabilityDecision(
+        ready=(
+            ForecastAvailability(
+                forecast=forecast,
+                missing_indicators=(),
+            ),
+        ),
+        latest_incomplete=None,
+        checked_forecasts=1,
+        already_normalized_forecasts=0,
     )
 
-    # The same forecast always receives the same run key.
-    # Dagster's sensor daemon uses that stable run key for
-    # duplicate-run protection.
-    assert (
-        second_tick.run_requests[0].run_key
-        == request.run_key
+    monkeypatch.setattr(
+        dwd_weather,
+        "find_ready_weather_forecasts",
+        lambda *args, **kwargs: decision,
     )
+
+    _patch_previous_runs(
+        monkeypatch,
+        [
+            SimpleNamespace(
+                status=status
+            )
+        ],
+    )
+
+    tick = (
+        dwd_weather
+        .dwd_icon_d2_ruc_availability_sensor
+        .evaluate_tick(
+            _sensor_context(
+                sensor_instance
+            )
+        )
+    )
+
+    assert tick.run_requests == []
+
+
+def test_sensor_stops_after_maximum_attempts(
+    monkeypatch,
+    sensor_instance,
+):
+    _patch_run_discovery(monkeypatch)
+    forecast = _forecast()
+
+    decision = WeatherAvailabilityDecision(
+        ready=(
+            ForecastAvailability(
+                forecast=forecast,
+                missing_indicators=(),
+            ),
+        ),
+        latest_incomplete=None,
+        checked_forecasts=1,
+        already_normalized_forecasts=0,
+    )
+
+    monkeypatch.setattr(
+        dwd_weather,
+        "find_ready_weather_forecasts",
+        lambda *args, **kwargs: decision,
+    )
+
+    previous_runs = [
+        SimpleNamespace(
+            status=(
+                dg.DagsterRunStatus.FAILURE
+            )
+        )
+        for _ in range(
+            dwd_weather
+            .SENSOR_MAX_ATTEMPTS
+        )
+    ]
+
+    _patch_previous_runs(
+        monkeypatch,
+        previous_runs,
+    )
+
+    tick = (
+        dwd_weather
+        .dwd_icon_d2_ruc_availability_sensor
+        .evaluate_tick(
+            _sensor_context(
+                sensor_instance
+            )
+        )
+    )
+
+    assert tick.run_requests == []

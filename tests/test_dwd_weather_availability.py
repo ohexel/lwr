@@ -2,17 +2,18 @@ from datetime import datetime, timezone
 
 from src.dwd_weather_availability import (
     check_forecast_availability,
-    find_ready_weather_forecast,
+    find_ready_weather_forecasts,
 )
 from src.forecast_key import ForecastKey
 
 
-def _forecast(hour: int) -> ForecastKey:
+def _forecast(
+    hour: int,
+    lead_time: str = "PT000H00M",
+) -> ForecastKey:
     return ForecastKey.from_dwd_labels(
-        run_time=(
-            f"2026-08-19T{hour:02d}:00"
-        ),
-        lead_time="PT000H00M",
+        run_time=f"2026-08-19T{hour:02d}:00",
+        lead_time=lead_time,
     )
 
 
@@ -39,7 +40,7 @@ def test_incomplete_forecast_reports_missing_indicator():
     )
 
 
-def test_finder_returns_newest_complete_pending_partition():
+def test_finder_returns_all_complete_pending_forecasts():
     run_times = [
         datetime(
             2026,
@@ -65,10 +66,13 @@ def test_finder_returns_newest_complete_pending_partition():
     ):
         return True
 
-    decision = find_ready_weather_forecast(
+    decision = find_ready_weather_forecasts(
         object(),
         advertised_run_times=run_times,
-        lead_time_labels=("PT000H00M",),
+        lead_time_labels=(
+            "PT000H00M",
+            "PT001H00M",
+        ),
         minimum_run_time=datetime(
             2026,
             8,
@@ -81,10 +85,36 @@ def test_finder_returns_newest_complete_pending_partition():
         field_available_fn=fake_available,
     )
 
-    assert decision.ready is not None
+    assert [
+        (
+            availability.forecast.run_label,
+            availability.forecast.lead_time_label,
+        )
+        for availability in decision.ready
+    ] == [
+        (
+            "20260819T1500",
+            "PT000H00M",
+        ),
+        (
+            "20260819T1500",
+            "PT001H00M",
+        ),
+        (
+            "20260819T1400",
+            "PT000H00M",
+        ),
+        (
+            "20260819T1400",
+            "PT001H00M",
+        ),
+    ]
+
+    assert decision.latest_incomplete is None
+    assert decision.checked_forecasts == 4
     assert (
-        decision.ready.forecast.run_label
-        == "20260819T1500"
+        decision.already_normalized_forecasts
+        == 0
     )
 
 
@@ -117,9 +147,10 @@ def test_incomplete_newest_run_does_not_block_older_complete_run():
             == "20260819T1500"
         ):
             return indicator != "V_10M"
+
         return True
 
-    decision = find_ready_weather_forecast(
+    decision = find_ready_weather_forecasts(
         object(),
         advertised_run_times=run_times,
         lead_time_labels=("PT000H00M",),
@@ -135,17 +166,84 @@ def test_incomplete_newest_run_does_not_block_older_complete_run():
         field_available_fn=fake_available,
     )
 
-    assert decision.ready is not None
-    assert (
-        decision.ready.forecast.run_label
-        == "20260819T1400"
-    )
+    assert [
+        availability.forecast.run_label
+        for availability in decision.ready
+    ] == [
+        "20260819T1400",
+    ]
+
     assert (
         decision.latest_incomplete
         is not None
     )
     assert (
         decision.latest_incomplete
+        .forecast.run_label
+        == "20260819T1500"
+    )
+    assert (
+        decision.latest_incomplete
         .missing_indicators
         == ("V_10M",)
     )
+
+
+def test_already_normalized_forecasts_are_skipped():
+    run_times = [
+        datetime(
+            2026,
+            8,
+            19,
+            15,
+            tzinfo=timezone.utc,
+        )
+    ]
+
+    def fake_already_normalized(
+        forecast: ForecastKey,
+    ) -> bool:
+        return (
+            forecast.lead_time_label
+            == "PT000H00M"
+        )
+
+    def fake_available(
+        session,
+        *,
+        indicator,
+        forecast,
+    ):
+        return True
+
+    decision = find_ready_weather_forecasts(
+        object(),
+        advertised_run_times=run_times,
+        lead_time_labels=(
+            "PT000H00M",
+            "PT001H00M",
+        ),
+        minimum_run_time=datetime(
+            2026,
+            8,
+            13,
+            tzinfo=timezone.utc,
+        ),
+        already_normalized_fn=(
+            fake_already_normalized
+        ),
+        field_available_fn=fake_available,
+    )
+
+    assert [
+        availability.forecast.lead_time_label
+        for availability in decision.ready
+    ] == [
+        "PT001H00M",
+    ]
+
+    assert (
+        decision.already_normalized_forecasts
+        == 1
+    )
+    assert decision.checked_forecasts == 1

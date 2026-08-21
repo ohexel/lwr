@@ -3,6 +3,8 @@ data/
 reports/generated/
 reports/profiling/
 reports/rendered/
+src/__pycache__/
+src/dagster_pipeline/__pycache__/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
