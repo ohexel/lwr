@@ -35,7 +35,7 @@ class WeatherAvailabilityDecision:
     ready: tuple[ForecastAvailability, ...]
     latest_incomplete: ForecastAvailability | None
     checked_forecasts: int
-    already_normalized_forecasts: int
+    already_complete_forecasts: int
 
 def dwd_polling_window_open( now: datetime | None = None ) -> bool:
     if now is None:
@@ -106,14 +106,14 @@ def find_ready_weather_forecasts(
     lead_time_labels: Sequence[str],
     minimum_run_time: datetime,
     max_run_times: int = 6,
-    already_normalized_fn: Callable[
+    already_complete_fn: Callable[
         [ForecastKey],
         bool,
     ] = normalized_weather_partition_complete,
     field_available_fn: Callable = field_available,
 ) -> WeatherAvailabilityDecision:
     """
-    Find the newest complete, not-yet-normalized weather partition.
+    Find complete weather partitions that are not already complete according to the injected completion predicate.
 
     Only a small recent run window is inspected. This keeps the sensor
     lightweight while prioritizing acquisition of source data that may
@@ -135,7 +135,7 @@ def find_ready_weather_forecasts(
     ready: list[ForecastAvailability] = []
     latest_incomplete = None
     checked = 0
-    already_normalized = 0
+    already_complete = 0
 
     for run_time in run_times:
         for lead_time_label in lead_time_labels:
@@ -146,8 +146,8 @@ def find_ready_weather_forecasts(
                 ),
             )
 
-            if already_normalized_fn(forecast):
-                already_normalized += 1
+            if already_complete_fn(forecast):
+                already_complete += 1
                 continue
 
             checked += 1
@@ -173,7 +173,7 @@ def find_ready_weather_forecasts(
         ready=tuple(ready),
         latest_incomplete=latest_incomplete,
         checked_forecasts=checked,
-        already_normalized_forecasts=(
-            already_normalized
+        already_complete_forecasts=(
+            already_complete
         ),
     )

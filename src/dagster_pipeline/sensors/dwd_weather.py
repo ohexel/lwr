@@ -1,7 +1,6 @@
 import requests
 import dagster as dg
 
-from src.dagster_pipeline.jobs import ICON_D2_RUC_WEATHER_JOB
 from src.dagster_pipeline.partitions import (
     WEATHER_LEAD_TIMES,
     WEATHER_HISTORY_START,
@@ -14,6 +13,12 @@ from src.dwd_icon_d2_ruc import (
 from src.dwd_weather_availability import (
     find_ready_weather_forecasts,
     dwd_polling_window_open
+)
+from src.dagster_pipeline.assets.database_weather_raw import (
+    ICON_D2_RUC_DATABASE_ACQUISITION_JOB,
+)
+from src.database.weather_state import (
+    raw_weather_partition_loaded,
 )
 
 
@@ -66,14 +71,14 @@ def _skip_reason_for_decision(
         )
 
     if (
-        decision.already_normalized_forecasts
+        decision.already_complete_forecasts
         > 0
     ):
         return dg.SkipReason(
             "No pending weather partition found "
             "in the recent DWD run window; "
             "checked candidates are already "
-            "fully normalized."
+            "complete in raw PostgreSQL storage."
         )
 
     return dg.SkipReason(
@@ -83,7 +88,7 @@ def _skip_reason_for_decision(
 
 
 @dg.sensor(
-    job=ICON_D2_RUC_WEATHER_JOB,
+    job=ICON_D2_RUC_DATABASE_ACQUISITION_JOB,
     minimum_interval_seconds=(
         SENSOR_MINIMUM_INTERVAL_SECONDS
     ),
@@ -116,7 +121,8 @@ def dwd_icon_d2_ruc_availability_sensor(context):
             decision = (
                 find_ready_weather_forecasts(
                     session,
-                    advertised_run_times=run_times,
+                    advertised_run_times = run_times,
+                    already_complete_fn=raw_weather_partition_loaded,
                     lead_time_labels=(
                         WEATHER_LEAD_TIMES
                     ),
