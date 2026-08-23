@@ -12,7 +12,6 @@ def test_icon_d2_ruc_assets_are_separate_and_visible():
     assert keys == {
         "raw_icon_t_2m",
         "raw_icon_relhum_2m",
-        "raw_icon_td_2m",
         "raw_icon_u_10m",
         "raw_icon_v_10m",
     }

@@ -22,8 +22,9 @@ NORMALIZED_ICON_D2_RUC_WEATHER_KEY = dg.AssetKey(
     group_name="normalized",
     description=(
         "SQL-normalized Berlin-scoped ICON D2 RUC weather: "
-        "five source indicators pivoted to one row per retained "
-        "cell, with Kelvin temperatures converted to Celsius."
+        "four required source fields validated at raw grain; "
+        "only temperature is retained downstream at cell grain, "
+        "with Kelvin converted to Celsius."
     ),
 )
 def normalized_icon_d2_ruc_weather(

@@ -14,7 +14,7 @@ def test_latest_raw_partition_normalizes_in_sql() -> None:
             GROUP BY
                 source_row.run_time_utc,
                 source_row.lead_time
-            HAVING COUNT(*) = 5
+            HAVING COUNT(*) = 4
             ORDER BY source_row.run_time_utc DESC
             LIMIT 1
             """

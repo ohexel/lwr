@@ -54,7 +54,7 @@ def raw_icon_d2_ruc_field_completeness(
         passed=state.passed,
         metadata=metadata,
         description=(
-            'PostgreSQL validates five permanent source manifests and '
+            'PostgreSQL validates four permanent source manifests and '
             'the Berlin-scoped source-value projection against the '
             'versioned weather mask used during ingestion.'
         ),

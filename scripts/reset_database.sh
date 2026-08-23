@@ -9,8 +9,8 @@ if [[ "${confirmation}" != "RESET" ]]; then
     exit 1
 fi
 
-docker compose --env-file .env -f docker/arch3_ph2_sql.yml down --volumes
-docker compose --env-file .env -f docker/arch3_ph2_sql.yml up -d postgres
+docker compose --env-file .env -f docker/postgres.yml down --volumes
+docker compose --env-file .env -f docker/postgres.yml up -d postgres
 
 echo "Database volume recreated."
 echo "Run: ./scripts/bootstrap_database.sh"

@@ -85,7 +85,7 @@ def _skip_reason_for_decision(
     default_status=dg.DefaultSensorStatus.STOPPED,
     description=(
         "Poll DWD ICON D2 RUC and launch forecast partitions "
-        "after all five required fields are available."
+        "after all four required fields are available."
     ),
 )
 def dwd_icon_d2_ruc_availability_sensor(

@@ -39,17 +39,6 @@ INDICATORS: dict[str, IconD2RucIndicator] = {
         allowed_units=frozenset({"%", "percent"}),
         dwd_parameter_id=500036,
     ),
-    "TD_2M": IconD2RucIndicator(
-        name="TD_2M",
-        output_column="dew_point_temperature_k",
-        discipline=0,
-        parameter_category=0,
-        parameter_number=6,
-        first_surface_type=103,
-        first_surface_scaled_value=2,
-        allowed_units=frozenset({"k", "kelvin"}),
-        dwd_parameter_id=500017,
-    ),
     "U_10M": IconD2RucIndicator(
         name="U_10M",
         output_column="wind_u_10m_ms",

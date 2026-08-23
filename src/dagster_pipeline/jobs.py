@@ -21,7 +21,7 @@ ICON_D2_RUC_RAW_ACQUISITION_JOB = dg.define_asset_job(
         *RAW_ICON_D2_RUC_ASSETS,
     ),
     description=(
-        "Acquire and validate the five retained raw ICON D2 RUC "
+        "Acquire and validate the four retained raw ICON D2 RUC "
         "GRIB fields for one forecast partition."
     ),
 )

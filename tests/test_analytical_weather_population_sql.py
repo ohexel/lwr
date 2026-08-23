@@ -14,7 +14,7 @@ def test_latest_partition_builds_final_analytical_sql() -> None:
             GROUP BY
                 source_row.run_time_utc,
                 source_row.lead_time
-            HAVING COUNT(*) = 5
+            HAVING COUNT(*) = 4
             ORDER BY source_row.run_time_utc DESC
             LIMIT 1
             """
