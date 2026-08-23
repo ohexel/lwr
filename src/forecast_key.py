@@ -192,10 +192,6 @@ class ProjectPaths:
     def data_root(self) -> Path:
         return self.project_root / "data"
 
-    @property
-    def reports_root(self) -> Path:
-        return self.project_root / "reports"
-
     @staticmethod
     def indicator_directory(indicator: str) -> str:
         """
@@ -235,66 +231,4 @@ class ProjectPaths:
             / forecast.run_label
             / forecast.lead_time_label
             / f"{indicator_dir}.grib2"
-        )
-
-    def normalized_icon_field(
-        self,
-        *,
-        indicator: str,
-        forecast: ForecastKey,
-    ) -> Path:
-        indicator_dir = self.indicator_directory(indicator)
-        return (
-            self.data_root
-            / "normalized"
-            / "icon_d2_ruc"
-            / indicator_dir
-            / forecast.run_label
-            / forecast.lead_time_label
-            / f"{indicator_dir}.parquet"
-        )
-
-    def analytical_plr_weather(
-        self,
-        *,
-        forecast: ForecastKey,
-    ) -> Path:
-        return (
-            self.data_root
-            / "analytical"
-            / "plr_weather"
-            / forecast.run_label
-            / forecast.lead_time_label
-            / "plr_weather.parquet"
-        )
-
-    def analytical_plr_weather_population(
-        self,
-        *,
-        forecast: ForecastKey,
-    ) -> Path:
-        return (
-            self.data_root
-            / "analytical"
-            / "plr_weather_population"
-            / forecast.run_label
-            / forecast.lead_time_label
-            / "plr_weather_population.parquet"
-        )
-
-    def icon_profile(
-        self,
-        *,
-        indicator: str,
-        forecast: ForecastKey,
-    ) -> Path:
-        indicator_dir = self.indicator_directory(indicator)
-        return (
-            self.reports_root
-            / "profiling"
-            / "icon_d2_ruc"
-            / indicator_dir
-            / forecast.run_label
-            / forecast.lead_time_label
-            / "profile.json"
         )

@@ -1,79 +1,84 @@
 import dagster as dg
-from src.dagster_pipeline.assets.icon_d2_ruc import ALL_ICON_D2_RUC_ASSETS
-from src.dagster_pipeline.sensors.dwd_weather import dwd_icon_d2_ruc_availability_sensor
-from src.dagster_pipeline.assets.icon_plr_area_bridge import icon_plr_area_bridge
-from src.dagster_pipeline.jobs import (
-        ICON_D2_RUC_RAW_ACQUISITION_JOB,
-        ICON_D2_RUC_WEATHER_JOB,
-        FINAL_ANALYTICAL_CHECK_JOB
-        )
-from src.dagster_pipeline.partitions import WEATHER_PARTITIONS
-from src.dagster_pipeline.assets.plr_population import plr_population_quality_gate
-from src.dagster_pipeline.assets.plr_weather import plr_weather
-# This imports the data function as an asset from src/dagster_pipeline/assets
-from src.dagster_pipeline.assets.plr_weather_population import plr_weather_population
-# This imports the check functions as an asset from src/dagster_pipeline/checks
-from src.dagster_pipeline.checks.plr_weather_population import FINAL_ANALYTICAL_ASSET_CHECKS
-from src.dagster_pipeline.assets.database_population import (
-        ARCHITECTURE_3_POPULATION_ASSETS
-        )
-from src.dagster_pipeline.assets.database_spatial import (
-        ARCHITECTURE_3_SPATIAL_ASSETS
-        )
-from src.dagster_pipeline.checks.database_population import (
-        ARCHITECTURE_3_POPULATION_CHECKS
-        )
-from src.dagster_pipeline.checks.database_spatial import (
-        ARCHITECTURE_3_SPATIAL_CHECKS
-        )
-from src.dagster_pipeline.assets.database_bridge import (
-        ARCHITECTURE_3_BRIDGE_ASSETS
-        )
-from src.dagster_pipeline.checks.database_bridge import (
-        ARCHITECTURE_3_BRIDGE_CHECKS
-        )
-from src.dagster_pipeline.assets.database_weather_mask import (
-    ARCHITECTURE_3_WEATHER_MASK_ASSETS,
+
+from src.dagster_pipeline.assets.database_analytical import (
+    ANALYTICAL_ASSETS,
 )
-from src.dagster_pipeline.checks.database_weather_mask import (
-    ARCHITECTURE_3_WEATHER_MASK_CHECKS,
+from src.dagster_pipeline.assets.database_bridge import (
+    BRIDGE_ASSETS,
+)
+from src.dagster_pipeline.assets.database_population import (
+    POPULATION_ASSETS,
+)
+from src.dagster_pipeline.assets.database_spatial import (
+    SPATIAL_ASSETS,
+)
+from src.dagster_pipeline.assets.database_weather_mask import (
+    WEATHER_MASK_ASSETS,
+)
+from src.dagster_pipeline.assets.database_weather_normalized import (
+    WEATHER_NORMALIZED_ASSETS,
 )
 from src.dagster_pipeline.assets.database_weather_raw import (
-    ARCHITECTURE_3_WEATHER_RAW_ASSETS,
-    ICON_D2_RUC_DATABASE_ACQUISITION_JOB,
+    WEATHER_RAW_ASSETS,
+)
+from src.dagster_pipeline.assets.icon_d2_ruc import (
+    RAW_ICON_D2_RUC_ASSETS,
+)
+from src.dagster_pipeline.checks.database_analytical import (
+    ANALYTICAL_CHECKS,
+)
+from src.dagster_pipeline.checks.database_bridge import (
+    BRIDGE_CHECKS,
+)
+from src.dagster_pipeline.checks.database_population import (
+    POPULATION_CHECKS,
+)
+from src.dagster_pipeline.checks.database_spatial import (
+    SPATIAL_CHECKS,
+)
+from src.dagster_pipeline.checks.database_weather_mask import (
+    WEATHER_MASK_CHECKS,
+)
+from src.dagster_pipeline.checks.database_weather_normalized import (
+    WEATHER_NORMALIZED_CHECKS,
 )
 from src.dagster_pipeline.checks.database_weather_raw import (
-    ARCHITECTURE_3_WEATHER_RAW_CHECKS,
+    WEATHER_RAW_CHECKS,
+)
+from src.dagster_pipeline.jobs import (
+    ICON_D2_RUC_FORECAST_JOB,
+    ICON_D2_RUC_RAW_ACQUISITION_JOB,
+)
+from src.dagster_pipeline.sensors.dwd_weather import (
+    dwd_icon_d2_ruc_availability_sensor,
 )
 
 
 defs = dg.Definitions(
     assets=[
-        *ALL_ICON_D2_RUC_ASSETS,
-        icon_plr_area_bridge,
-        plr_population_quality_gate,
-        plr_weather,
-        plr_weather_population,
-        *ARCHITECTURE_3_POPULATION_ASSETS,
-        *ARCHITECTURE_3_SPATIAL_ASSETS,
-        *ARCHITECTURE_3_BRIDGE_ASSETS,
-        *ARCHITECTURE_3_WEATHER_MASK_ASSETS,
-        *ARCHITECTURE_3_WEATHER_RAW_ASSETS
+        *RAW_ICON_D2_RUC_ASSETS,
+        *POPULATION_ASSETS,
+        *SPATIAL_ASSETS,
+        *BRIDGE_ASSETS,
+        *WEATHER_MASK_ASSETS,
+        *WEATHER_RAW_ASSETS,
+        *WEATHER_NORMALIZED_ASSETS,
+        *ANALYTICAL_ASSETS,
     ],
     asset_checks=[
-        *FINAL_ANALYTICAL_ASSET_CHECKS,
-        *ARCHITECTURE_3_POPULATION_CHECKS,
-        *ARCHITECTURE_3_SPATIAL_CHECKS,
-        *ARCHITECTURE_3_BRIDGE_CHECKS,
-        *ARCHITECTURE_3_WEATHER_MASK_CHECKS,
-        *ARCHITECTURE_3_WEATHER_RAW_CHECKS
+        *POPULATION_CHECKS,
+        *SPATIAL_CHECKS,
+        *BRIDGE_CHECKS,
+        *WEATHER_MASK_CHECKS,
+        *WEATHER_RAW_CHECKS,
+        *WEATHER_NORMALIZED_CHECKS,
+        *ANALYTICAL_CHECKS,
     ],
     jobs=[
         ICON_D2_RUC_RAW_ACQUISITION_JOB,
-        ICON_D2_RUC_WEATHER_JOB,
-        FINAL_ANALYTICAL_CHECK_JOB,
-        ICON_D2_RUC_DATABASE_ACQUISITION_JOB
-        ],
-    sensors = [ dwd_icon_d2_ruc_availability_sensor ],
+        ICON_D2_RUC_FORECAST_JOB,
+    ],
+    sensors=[
+        dwd_icon_d2_ruc_availability_sensor,
+    ],
 )
-

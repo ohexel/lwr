@@ -86,6 +86,6 @@ def population_quality_accounting(
     )
 
 
-ARCHITECTURE_3_POPULATION_CHECKS = [
+POPULATION_CHECKS = [
     population_quality_accounting,
 ]

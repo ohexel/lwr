@@ -8,7 +8,9 @@ from src.dagster_pipeline.assets.database_spatial import (
     NORMALIZED_ICON_CELL_KEY,
     NORMALIZED_PLR_KEY,
 )
-from src.ingestion.icon_grid import ICON_GRID_ID
+from src.icon_grid_contract import (
+    ICON_D2_GRID_CONTRACT,
+)
 
 
 NORMALIZED_ICON_PLR_BRIDGE_KEY = dg.AssetKey(
@@ -52,7 +54,7 @@ def normalized_icon_plr_area_bridge(
             """,
             (
                 geography_version,
-                ICON_GRID_ID,
+                ICON_D2_GRID_CONTRACT.source_grid_id,
             ),
         ).fetchone()
 
@@ -64,7 +66,7 @@ def normalized_icon_plr_area_bridge(
     context.add_output_metadata(
         {
             "geography_version": geography_version,
-            "source_grid_id": ICON_GRID_ID,
+            "source_grid_id": ICON_D2_GRID_CONTRACT.source_grid_id,
             "bridge_row_count": int(result[0]),
             "represented_plr_count": int(result[1]),
             "represented_icon_cell_count": int(result[2]),
@@ -72,6 +74,6 @@ def normalized_icon_plr_area_bridge(
     )
 
 
-ARCHITECTURE_3_BRIDGE_ASSETS = [
+BRIDGE_ASSETS = [
     normalized_icon_plr_area_bridge,
 ]

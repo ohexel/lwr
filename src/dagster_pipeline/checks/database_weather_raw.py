@@ -61,6 +61,6 @@ def raw_icon_d2_ruc_field_completeness(
     )
 
 
-ARCHITECTURE_3_WEATHER_RAW_CHECKS = [
+WEATHER_RAW_CHECKS = [
     raw_icon_d2_ruc_field_completeness,
 ]

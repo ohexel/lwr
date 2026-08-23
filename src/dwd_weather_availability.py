@@ -9,8 +9,7 @@ import requests
 from src.dwd_icon_d2_ruc import field_available
 from src.forecast_key import (
     ForecastKey,
-    ProjectPaths,
-    parse_lead_time,
+    parse_lead_time
 )
 from src.icon_d2_ruc_indicators import INDICATORS
 
@@ -41,32 +40,6 @@ def dwd_polling_window_open( now: datetime | None = None ) -> bool:
     if now is None:
         now = datetime.now(timezone.utc)
     return 30 <= now.minute <= 59
-
-def normalized_weather_partition_complete(
-    forecast: ForecastKey,
-    *,
-    paths: ProjectPaths | None = None,
-    indicators: Sequence[str] = (
-        REQUIRED_WEATHER_INDICATORS
-    ),
-) -> bool:
-    """
-    Return True when every required normalized source field exists for
-    one forecast partition.
-
-    This is an orchestration-state shortcut, not a replacement for
-    asset validation. Each normalized asset still validates its own
-    source when materialized.
-    """
-    project_paths = paths or ProjectPaths()
-
-    return all(
-        project_paths.normalized_icon_field(
-            indicator=indicator,
-            forecast=forecast,
-        ).exists()
-        for indicator in indicators
-    )
 
 
 def check_forecast_availability(
@@ -109,7 +82,7 @@ def find_ready_weather_forecasts(
     already_complete_fn: Callable[
         [ForecastKey],
         bool,
-    ] = normalized_weather_partition_complete,
+    ],
     field_available_fn: Callable = field_available,
 ) -> WeatherAvailabilityDecision:
     """

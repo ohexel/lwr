@@ -1,5 +1,6 @@
 # Project files
 data/
+diagnostics/
 reports/generated/
 reports/profiling/
 reports/rendered/

@@ -10,14 +10,16 @@ from pathlib import Path
 
 import requests
 
-
-GRID_URL = (
-    "https://opendata.dwd.de/weather/lib/cdo/"
-    "icon_grid_0047_R19B07_L.nc.bz2"
+from src.icon_grid_contract import (
+    ICON_D2_GRID_CONTRACT,
 )
 
-GRID_FILENAME = "icon_grid_0047_R19B07_L.nc.bz2"
-DEFAULT_OUTPUT_DIR = "data/raw/icon-d2-grid"
+
+GRID_URL = ICON_D2_GRID_CONTRACT.source_url
+GRID_FILENAME = ICON_D2_GRID_CONTRACT.source_path.name
+DEFAULT_OUTPUT_DIR = str(
+    ICON_D2_GRID_CONTRACT.source_path.parent
+)
 TIMEOUT_SECONDS = 120
 
 
@@ -127,8 +129,8 @@ def main() -> int:
     metadata = {
         "started_at": utc_now(),
         "dataset": "DWD ICON-D2 grid definition",
-        "grid_id": "0047",
-        "grid_name": "R19B07_L",
+        "grid_id": ICON_D2_GRID_CONTRACT.dwd_grid_number,
+        "grid_name": ICON_D2_GRID_CONTRACT.dwd_grid_name,
         "source": {
             "publisher": "Deutscher Wetterdienst (DWD)",
             "source_url": GRID_URL,

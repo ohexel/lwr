@@ -7,8 +7,8 @@ from src.dagster_pipeline.assets.database_spatial import (
     RAW_ICON_GRID_KEY,
     RAW_LOR_KEY,
 )
-from src.ingestion.icon_grid import (
-    ICON_GRID_ID,
+from src.icon_grid_contract import (
+    ICON_D2_GRID_CONTRACT,
 )
 
 
@@ -130,10 +130,18 @@ def icon_cell_geometry_quality(
                 quality.wrong_srid_count,
                 quality.non_triangle_count,
                 quality.rejection_reasons
-            FROM normalized.check_icon_geometry_quality(%s)
+            FROM normalized.check_icon_geometry_quality(
+                %s::TEXT,
+                %s::INTEGER,
+                %s::INTEGER
+            )
                 AS quality
             """,
-            (ICON_GRID_ID,),
+            (
+                ICON_D2_GRID_CONTRACT.source_grid_id,
+                ICON_D2_GRID_CONTRACT.vertex_count,
+                ICON_D2_GRID_CONTRACT.cell_count,
+            ),
         ).fetchone()
 
     if result is None:
@@ -148,7 +156,7 @@ def icon_cell_geometry_quality(
     return dg.AssetCheckResult(
         passed=bool(result[0]),
         metadata={
-            "source_grid_id": ICON_GRID_ID,
+            "source_grid_id": ICON_D2_GRID_CONTRACT.source_grid_id,
             "raw_vertex_count": int(
                 result[1]
             ),
@@ -183,7 +191,7 @@ def icon_cell_geometry_quality(
     )
 
 
-ARCHITECTURE_3_SPATIAL_CHECKS = [
+SPATIAL_CHECKS = [
     plr_geometry_quality,
     icon_cell_geometry_quality,
 ]

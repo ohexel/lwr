@@ -4,11 +4,11 @@ from src.database.connection import database_connection
 
 
 def test_postgis_bridge_area_weights():
-    geography_version = "phase_6_fixture"
-    source_grid_id = "phase_6_grid"
+    geography_version = "bridge_test_geography"
+    source_grid_id = "bridge_test_grid"
 
     with database_connection(
-        application_name="capstone_phase_6_test"
+        application_name="capstone_bridge_test"
     ) as connection:
         connection.execute(
             """
@@ -35,7 +35,7 @@ def test_postgis_bridge_area_weights():
                 ),
                 %s,
                 %s,
-                'phase_6_fixture'
+                'bridge_test_fixture'
             )
             """,
             (
@@ -93,19 +93,15 @@ def test_postgis_bridge_area_weights():
             SELECT
                 bridge.bridge_row_count,
                 bridge.represented_plr_count,
-                bridge.intersecting_icon_cell_count
+                bridge.represented_icon_cell_count
             FROM normalized.refresh_icon_plr_area_bridge(
-                %s,
-                %s,
-                %s,
-                %s
+                %s::TEXT,
+                %s::TEXT
             ) AS bridge
             """,
             (
                 geography_version,
-                source_grid_id,
-                1,
-                2,
+                source_grid_id
             ),
         ).fetchone()
 
@@ -140,10 +136,10 @@ def test_postgis_bridge_area_weights():
             """
             SELECT
                 quality.passed,
-                quality.uncovered_plr_count,
-                quality.weight_sum_failure_count,
-                quality.max_fraction_of_plr_deviation
-            FROM normalized.check_icon_plr_area_bridge(
+                quality.missing_plr_count,
+                quality.plr_weight_failure_count,
+                quality.max_plr_weight_error
+            FROM normalized.check_icon_plr_area_bridge_quality(
                 %s,
                 %s,
                 %s

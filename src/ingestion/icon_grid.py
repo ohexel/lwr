@@ -10,19 +10,10 @@ from netCDF4 import Dataset
 
 from src.database.connection import database_connection
 from src.database.load import copy_rows
-
-
-DEFAULT_ICON_GRID_PATH = Path(
-    "data/raw/icon_d2_grid/"
-    "icon_grid_0047_R19B07_L.nc.bz2"
+from src.icon_grid_contract import (
+    ICON_D2_GRID_CONTRACT,
 )
 
-ICON_GRID_ID = "icon_grid_0047_R19B07_L"
-
-ICON_GRID_URL = (
-    "https://opendata.dwd.de/weather/lib/cdo/"
-    "icon_grid_0047_R19B07_L.nc.bz2"
-)
 
 REQUIRED_VARIABLES = {
     "vlon",
@@ -197,8 +188,10 @@ def _read_grid(
 
 
 def load_icon_grid_raw(
-    source_path: Path = DEFAULT_ICON_GRID_PATH,
+    source_path: Path | None = None,
 ) -> IconGridLoadResult:
+    if source_path is None:
+        source_path = ICON_D2_GRID_CONTRACT.source_path
     if not source_path.exists():
         raise FileNotFoundError(
             f"ICON grid source not found: {source_path}"
@@ -219,6 +212,20 @@ def load_icon_grid_raw(
     vertex_count = len(longitude)
     cell_count = len(connectivity)
 
+    if vertex_count != ICON_D2_GRID_CONTRACT.vertex_count:
+        raise ValueError(
+            "ICON grid vertex count does not match contract: "
+            f"observed {vertex_count:,}; expected "
+            f"{ICON_D2_GRID_CONTRACT.vertex_count:,}"
+        )
+
+    if cell_count != ICON_D2_GRID_CONTRACT.cell_count:
+        raise ValueError(
+            "ICON grid cell count does not match contract: "
+            f"observed {cell_count:,}; expected "
+            f"{ICON_D2_GRID_CONTRACT.cell_count:,}"
+        )
+
     with database_connection(
         application_name="capstone_icon_grid_load"
     ) as connection:
@@ -229,7 +236,7 @@ def load_icon_grid_raw(
             DELETE FROM raw.icon_grid_source
             WHERE source_grid_id = %s
             """,
-            (ICON_GRID_ID,),
+            (ICON_D2_GRID_CONTRACT.source_grid_id,),
         )
 
         connection.execute(
@@ -245,10 +252,10 @@ def load_icon_grid_raw(
             VALUES (%s, %s, %s, %s, %s, %s)
             """,
             (
-                ICON_GRID_ID,
+                ICON_D2_GRID_CONTRACT.source_grid_id,
                 str(source_path),
                 source_sha256,
-                ICON_GRID_URL,
+                ICON_D2_GRID_CONTRACT.source_url,
                 vertex_count,
                 cell_count,
             ),
@@ -266,7 +273,7 @@ def load_icon_grid_raw(
             ),
             rows=(
                 (
-                    ICON_GRID_ID,
+                    ICON_D2_GRID_CONTRACT.source_grid_id,
                     int(vertex_index),
                     float(longitude_value),
                     float(latitude_value),
@@ -298,7 +305,7 @@ def load_icon_grid_raw(
             ),
             rows=(
                 (
-                    ICON_GRID_ID,
+                    ICON_D2_GRID_CONTRACT.source_grid_id,
                     int(cell_index),
                     int(vertex_order),
                     int(connectivity[
@@ -309,14 +316,36 @@ def load_icon_grid_raw(
                 for cell_index in range(
                     cell_count
                 )
-                for vertex_order in range(3)
+                for vertex_order in range(
+                    ICON_D2_GRID_CONTRACT.vertices_per_cell
+                )
             ),
         )
+
+        if (
+            vertex_result.row_count
+            != ICON_D2_GRID_CONTRACT.vertex_count
+        ):
+            raise RuntimeError(
+                "ICON grid vertex COPY count does not match contract: "
+                f"loaded {vertex_result.row_count:,}; expected "
+                f"{ICON_D2_GRID_CONTRACT.vertex_count:,}"
+            )
+
+        if (
+            topology_result.row_count
+            != ICON_D2_GRID_CONTRACT.topology_row_count
+        ):
+            raise RuntimeError(
+                "ICON grid topology COPY count does not match contract: "
+                f"loaded {topology_result.row_count:,}; expected "
+                f"{ICON_D2_GRID_CONTRACT.topology_row_count:,}"
+            )
 
     return IconGridLoadResult(
         source_path=str(source_path),
         source_sha256=source_sha256,
-        source_grid_id=ICON_GRID_ID,
+        source_grid_id=ICON_D2_GRID_CONTRACT.source_grid_id,
         vertex_count=vertex_count,
         cell_count=cell_count,
         topology_row_count=(

@@ -79,7 +79,7 @@ def test_finder_returns_all_complete_pending_forecasts():
             13,
             tzinfo=timezone.utc,
         ),
-        already_normalized_fn=(
+        already_complete_fn=(
             lambda forecast: False
         ),
         field_available_fn=fake_available,
@@ -113,7 +113,7 @@ def test_finder_returns_all_complete_pending_forecasts():
     assert decision.latest_incomplete is None
     assert decision.checked_forecasts == 4
     assert (
-        decision.already_normalized_forecasts
+        decision.already_complete_forecasts
         == 0
     )
 
@@ -160,7 +160,7 @@ def test_incomplete_newest_run_does_not_block_older_complete_run():
             13,
             tzinfo=timezone.utc,
         ),
-        already_normalized_fn=(
+        already_complete_fn=(
             lambda forecast: False
         ),
         field_available_fn=fake_available,
@@ -189,7 +189,7 @@ def test_incomplete_newest_run_does_not_block_older_complete_run():
     )
 
 
-def test_already_normalized_forecasts_are_skipped():
+def test_already_complete_forecasts_are_skipped():
     run_times = [
         datetime(
             2026,
@@ -229,7 +229,7 @@ def test_already_normalized_forecasts_are_skipped():
             13,
             tzinfo=timezone.utc,
         ),
-        already_normalized_fn=(
+        already_complete_fn=(
             fake_already_normalized
         ),
         field_available_fn=fake_available,
@@ -243,7 +243,7 @@ def test_already_normalized_forecasts_are_skipped():
     ]
 
     assert (
-        decision.already_normalized_forecasts
+        decision.already_complete_forecasts
         == 1
     )
     assert decision.checked_forecasts == 1

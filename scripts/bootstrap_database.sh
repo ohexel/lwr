@@ -35,7 +35,7 @@ do
     sleep 1
 done
 
-for file in sql/*.sql
+for file in sql/[0-9][0-9][0-9]_*.sql
 do
     echo "Applying ${file}"
     docker compose -f docker/arch3_ph2_sql.yml \

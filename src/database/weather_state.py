@@ -6,6 +6,9 @@ from psycopg import Connection
 
 from src.database.connection import database_connection
 from src.forecast_key import ForecastKey
+from src.icon_grid_contract import (
+    ICON_D2_GRID_CONTRACT,
+)
 
 
 @dataclass(frozen=True)
@@ -69,13 +72,15 @@ def query_raw_weather_partition_state(
         FROM raw.check_icon_d2_ruc_field_partition(
             %s::TIMESTAMPTZ,
             %s::TEXT,
-            %s::TIMESTAMPTZ
+            %s::TIMESTAMPTZ,
+            %s::INTEGER
         ) AS quality
         ''',
         (
             forecast.run_time,
             forecast.lead_time_label,
             forecast.valid_time,
+            ICON_D2_GRID_CONTRACT.field_point_count,
         ),
     ).fetchone()
 
@@ -103,14 +108,28 @@ def query_raw_weather_partition_state(
     )
 
 
-def raw_weather_partition_loaded(
+def weather_population_partition_complete(
     forecast: ForecastKey,
 ) -> bool:
+    """
+    Return True only when the final weather/population partition
+    satisfies its PostgreSQL quality contract.
+    """
     with database_connection(
-        application_name='capstone_weather_state'
+        application_name="capstone_weather_population_state"
     ) as connection:
-        state = query_raw_weather_partition_state(
-            connection,
-            forecast,
-        )
-    return state.passed
+        result = connection.execute(
+            """
+            SELECT quality.passed
+            FROM analytical.check_plr_weather_population_quality(
+                %s::TIMESTAMPTZ,
+                %s::TEXT
+            ) AS quality
+            """,
+            (
+                forecast.run_time,
+                forecast.lead_time_label,
+            ),
+        ).fetchone()
+
+    return result is not None and bool(result[0])

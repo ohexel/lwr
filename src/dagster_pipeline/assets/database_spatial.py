@@ -1,8 +1,10 @@
 import dagster as dg
 
 from src.database.connection import database_connection
+from src.icon_grid_contract import (
+    ICON_D2_GRID_CONTRACT,
+)
 from src.ingestion.icon_grid import (
-    ICON_GRID_ID,
     load_icon_grid_raw,
 )
 from src.ingestion.lor import (
@@ -199,10 +201,18 @@ def normalized_icon_cell(
                 result.normalized_cell_count,
                 result.rejected_cell_count,
                 result.rejection_reasons
-            FROM normalized.refresh_icon_cell_geometry(%s)
+            FROM normalized.refresh_icon_cell_geometry(
+                %s::TEXT,
+                %s::INTEGER,
+                %s::INTEGER
+            )
                 AS result
             """,
-            (ICON_GRID_ID,),
+            (
+                ICON_D2_GRID_CONTRACT.source_grid_id,
+                ICON_D2_GRID_CONTRACT.vertex_count,
+                ICON_D2_GRID_CONTRACT.cell_count,
+            ),
         ).fetchone()
 
         if summary is None:
@@ -213,7 +223,7 @@ def normalized_icon_cell(
 
     context.add_output_metadata(
         {
-            "source_grid_id": ICON_GRID_ID,
+            "source_grid_id": ICON_D2_GRID_CONTRACT.source_grid_id,
             "raw_vertex_count": int(
                 summary[0]
             ),
@@ -234,7 +244,7 @@ def normalized_icon_cell(
     )
 
 
-ARCHITECTURE_3_SPATIAL_ASSETS = [
+SPATIAL_ASSETS = [
     raw_lor_plr,
     raw_icon_grid,
     normalized_plr,

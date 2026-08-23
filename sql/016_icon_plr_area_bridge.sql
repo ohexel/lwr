@@ -1,4 +1,4 @@
--- Canonical Phase 6 bridge materialization contract.
+-- Canonical bridge materialization contract
 --
 -- CREATE OR REPLACE does not replace a function whose argument
 -- signature changed. Remove the earlier four-argument overload so a

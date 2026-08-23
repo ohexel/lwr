@@ -6,7 +6,9 @@ from psycopg import Connection
 from src.database.spatial_state import (
     current_geography_version,
 )
-from src.ingestion.icon_grid import ICON_GRID_ID
+from src.icon_grid_contract import (
+    ICON_D2_GRID_CONTRACT,
+)
 
 
 DEFAULT_WEATHER_MASK_BUFFER_M = 5000
@@ -40,7 +42,7 @@ def weather_mask_buffer_m() -> int:
 def current_weather_mask(
     connection: Connection,
     *,
-    source_grid_id: str = ICON_GRID_ID,
+    source_grid_id: str = ICON_D2_GRID_CONTRACT.source_grid_id,
     mask_buffer_m: int | None = None,
 ) -> WeatherMaskState:
     buffer_m = (

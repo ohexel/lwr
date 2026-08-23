@@ -12,7 +12,9 @@ from src.dagster_pipeline.assets.database_spatial import (
     NORMALIZED_ICON_CELL_KEY,
     NORMALIZED_PLR_KEY,
 )
-from src.ingestion.icon_grid import ICON_GRID_ID
+from src.icon_grid_contract import (
+    ICON_D2_GRID_CONTRACT,
+)
 
 
 NORMALIZED_ICON_WEATHER_MASK_KEY = dg.AssetKey(
@@ -51,7 +53,7 @@ def normalized_icon_weather_mask(
                 %s::INTEGER
             )
             ''',
-            (geography_version, ICON_GRID_ID, buffer_m),
+            (geography_version, ICON_D2_GRID_CONTRACT.source_grid_id, buffer_m),
         ).fetchone()
 
     if result is None:
@@ -60,7 +62,7 @@ def normalized_icon_weather_mask(
     context.add_output_metadata(
         {
             'geography_version': geography_version,
-            'source_grid_id': ICON_GRID_ID,
+            'source_grid_id': ICON_D2_GRID_CONTRACT.source_grid_id,
             'mask_buffer_m': buffer_m,
             'mask_cell_count': int(result[0]),
             'bridge_cell_count': int(result[1]),
@@ -69,6 +71,6 @@ def normalized_icon_weather_mask(
     )
 
 
-ARCHITECTURE_3_WEATHER_MASK_ASSETS = [
+WEATHER_MASK_ASSETS = [
     normalized_icon_weather_mask,
 ]

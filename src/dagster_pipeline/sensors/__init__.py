@@ -1,1 +1,1 @@
-"""Dagster sensors for Architecture 2."""
+"""Dagster sensors for external data availability."""

@@ -1,5 +1,4 @@
--- One-time/idempotent cleanup for databases that went through earlier
--- Phase 6 iterations.
+-- One-time/idempotent cleanup for databases 
 
 DROP FUNCTION IF EXISTS
     normalized.refresh_icon_plr_area_bridge(

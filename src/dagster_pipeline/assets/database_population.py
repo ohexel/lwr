@@ -126,7 +126,7 @@ def normalized_afs_population_quality_gate(
     )
 
 
-ARCHITECTURE_3_POPULATION_ASSETS = [
+POPULATION_ASSETS = [
     raw_afs_population,
     normalized_afs_population_quality_gate,
 ]

@@ -107,7 +107,7 @@ def test_sensor_incomplete_partition_has_no_run_request(
             )
         ),
         checked_forecasts=1,
-        already_normalized_forecasts=0,
+        already_complete_forecasts=0,
     )
 
     monkeypatch.setattr(
@@ -156,7 +156,7 @@ def test_sensor_emits_all_ready_partitions_as_first_attempts(
         ),
         latest_incomplete=None,
         checked_forecasts=2,
-        already_normalized_forecasts=0,
+        already_complete_forecasts=0,
     )
 
     monkeypatch.setattr(
@@ -212,22 +212,21 @@ def test_sensor_emits_all_ready_partitions_as_first_attempts(
     )
 
     assert zero_request.run_key == (
-        "dwd_icon_d2_ruc:"
+        "dwd_icon_d2_ruc_forecast:"
         "20260819T1500:"
         "PT000H00M:"
         "attempt_1"
     )
-    assert (
-        zero_request.tags["attempt"]
-        == "1"
-    )
+
+    assert zero_request.tags["attempt"] == "1"
+    assert zero_request.tags["weather_run_scope"] == "forecast_pipeline"
 
     one_request = requests_by_lead[
         "PT001H00M"
     ]
 
     assert one_request.run_key == (
-        "dwd_icon_d2_ruc:"
+        "dwd_icon_d2_ruc_forecast:"
         "20260819T1500:"
         "PT001H00M:"
         "attempt_1"
@@ -254,7 +253,7 @@ def test_sensor_retries_failed_partition_with_new_attempt(
         ),
         latest_incomplete=None,
         checked_forecasts=1,
-        already_normalized_forecasts=0,
+        already_complete_forecasts=0,
     )
 
     monkeypatch.setattr(
@@ -289,12 +288,13 @@ def test_sensor_retries_failed_partition_with_new_attempt(
     request = tick.run_requests[0]
 
     assert request.run_key == (
-        "dwd_icon_d2_ruc:"
+        "dwd_icon_d2_ruc_forecast:"
         "20260819T1500:"
         "PT000H00M:"
         "attempt_2"
     )
     assert request.tags["attempt"] == "2"
+    assert request.tags["weather_run_scope"] == "forecast_pipeline"
 
 
 @pytest.mark.parametrize(
@@ -321,7 +321,7 @@ def test_sensor_does_not_duplicate_active_or_successful_partition(
         ),
         latest_incomplete=None,
         checked_forecasts=1,
-        already_normalized_forecasts=0,
+        already_complete_forecasts=0,
     )
 
     monkeypatch.setattr(
@@ -368,7 +368,7 @@ def test_sensor_stops_after_maximum_attempts(
         ),
         latest_incomplete=None,
         checked_forecasts=1,
-        already_normalized_forecasts=0,
+        already_complete_forecasts=0,
     )
 
     monkeypatch.setattr(

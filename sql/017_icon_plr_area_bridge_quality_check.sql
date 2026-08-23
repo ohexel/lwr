@@ -1,4 +1,4 @@
--- Canonical Phase 6 bridge quality contract.
+-- Canonical bridge quality contract.
 --
 -- Remove every overload of the old function name. It is no longer
 -- referenced by application code; the canonical function is the

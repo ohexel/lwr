@@ -49,17 +49,6 @@ def test_forecast_key_and_paths_use_canonical_partition_identity():
         "20260819T1200/PT012H00M/t_2m.grib2"
     )
 
-    assert str(
-        paths.normalized_icon_field(
-            indicator="RELHUM_2M",
-            forecast=forecast,
-        )
-    ) == (
-        "data/normalized/icon_d2_ruc/relhum_2m/"
-        "20260819T1200/PT012H00M/relhum_2m.parquet"
-    )
-
-
 def test_invalid_lead_time_is_rejected():
     with pytest.raises(ValueError):
         parse_lead_time("12h")

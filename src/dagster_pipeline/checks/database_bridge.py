@@ -7,7 +7,9 @@ from src.database.spatial_state import (
 from src.dagster_pipeline.assets.database_bridge import (
     NORMALIZED_ICON_PLR_BRIDGE_KEY,
 )
-from src.ingestion.icon_grid import ICON_GRID_ID
+from src.icon_grid_contract import (
+    ICON_D2_GRID_CONTRACT,
+)
 
 
 @dg.asset_check(
@@ -46,7 +48,7 @@ def icon_plr_area_bridge_quality(
             """,
             (
                 geography_version,
-                ICON_GRID_ID,
+                ICON_D2_GRID_CONTRACT.source_grid_id,
             ),
         ).fetchone()
 
@@ -60,7 +62,7 @@ def icon_plr_area_bridge_quality(
 
     metadata = {
         "geography_version": geography_version,
-        "source_grid_id": ICON_GRID_ID,
+        "source_grid_id": ICON_D2_GRID_CONTRACT.source_grid_id,
         "bridge_row_count": int(result[1]),
         "source_plr_count": int(result[2]),
         "represented_plr_count": int(result[3]),
@@ -90,6 +92,6 @@ def icon_plr_area_bridge_quality(
     )
 
 
-ARCHITECTURE_3_BRIDGE_CHECKS = [
+BRIDGE_CHECKS = [
     icon_plr_area_bridge_quality,
 ]

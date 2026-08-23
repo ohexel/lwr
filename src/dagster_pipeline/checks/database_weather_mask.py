@@ -8,7 +8,9 @@ from src.database.weather_mask import weather_mask_buffer_m
 from src.dagster_pipeline.assets.database_weather_mask import (
     NORMALIZED_ICON_WEATHER_MASK_KEY,
 )
-from src.ingestion.icon_grid import ICON_GRID_ID
+from src.icon_grid_contract import (
+    ICON_D2_GRID_CONTRACT,
+)
 
 
 @dg.asset_check(
@@ -33,7 +35,7 @@ def icon_weather_mask_quality(
                 %s::INTEGER
             )
             ''',
-            (geography_version, ICON_GRID_ID, buffer_m),
+            (geography_version, ICON_D2_GRID_CONTRACT.source_grid_id, buffer_m),
         ).fetchone()
 
     if result is None:
@@ -41,7 +43,7 @@ def icon_weather_mask_quality(
 
     metadata = {
         'geography_version': geography_version,
-        'source_grid_id': ICON_GRID_ID,
+        'source_grid_id': ICON_D2_GRID_CONTRACT.source_grid_id,
         'mask_buffer_m': buffer_m,
         'source_plr_count': int(result[1]),
         'mask_cell_count': int(result[2]),
@@ -56,6 +58,6 @@ def icon_weather_mask_quality(
     )
 
 
-ARCHITECTURE_3_WEATHER_MASK_CHECKS = [
+WEATHER_MASK_CHECKS = [
     icon_weather_mask_quality,
 ]

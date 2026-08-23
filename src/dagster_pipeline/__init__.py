@@ -1,1 +1,1 @@
-"""Dagster orchestration layer for Architecture 2."""
+"""Dagster orchestration for the capstone data pipeline."""

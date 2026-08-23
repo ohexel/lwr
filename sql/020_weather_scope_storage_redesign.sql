@@ -1,10 +1,7 @@
 BEGIN;
 
--- Phase 7.5: permanent weather storage becomes a Berlin-scoped,
--- source-faithful projection. The retained GRIB remains the complete source.
---
--- IMPORTANT: this migration intentionally discards the existing full-grid
--- rows in raw.icon_d2_ruc_field.
+-- Permanent weather storage is a Berlin-scoped, source-faithful projection.
+-- The retained GRIB remains the complete source.
 
 DROP FUNCTION IF EXISTS raw.check_icon_d2_ruc_field_partition(
     TIMESTAMPTZ,

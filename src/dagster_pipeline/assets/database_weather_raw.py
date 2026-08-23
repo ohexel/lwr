@@ -62,19 +62,6 @@ def raw_icon_d2_ruc_field(
     )
 
 
-ARCHITECTURE_3_WEATHER_RAW_ASSETS = [
+WEATHER_RAW_ASSETS = [
     raw_icon_d2_ruc_field,
 ]
-
-
-ICON_D2_RUC_DATABASE_ACQUISITION_JOB = dg.define_asset_job(
-    name='icon_d2_ruc_database_acquisition',
-    selection=dg.AssetSelection.assets(
-        *RAW_ICON_D2_RUC_ASSETS,
-        raw_icon_d2_ruc_field,
-    ),
-    description=(
-        'Acquire the five retained raw GRIB fields and load a '
-        'Berlin-scoped source-faithful PostgreSQL partition.'
-    ),
-)
