@@ -3,7 +3,7 @@ from src.database.connection import database_connection
 
 def test_latest_raw_partition_normalizes_in_sql() -> None:
     with database_connection(
-        application_name="capstone_test_phase8_weather"
+        application_name="capstone_weather_normalized_test"
     ) as connection:
         partition = connection.execute(
             """
@@ -53,6 +53,20 @@ def test_latest_raw_partition_normalizes_in_sql() -> None:
         assert int(quality[1]) == int(quality[2])
         assert int(quality[6]) == 0
         assert int(quality[7]) == 0
+
+        apparent_temperature_missing = connection.execute(
+            """
+            SELECT COUNT(*)
+            FROM normalized.icon_d2_ruc_weather AS weather_row
+            WHERE weather_row.run_time_utc = %s
+              AND weather_row.lead_time = %s
+              AND weather_row.apparent_temperature_shade_c IS NULL
+            """,
+            (run_time_utc, lead_time),
+        ).fetchone()
+
+        assert apparent_temperature_missing is not None
+        assert int(apparent_temperature_missing[0]) == 0
 
         fidelity = connection.execute(
             """

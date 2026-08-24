@@ -61,8 +61,8 @@ def icon_d2_ruc_weather_quality(
         metadata=metadata,
         description=(
             "PostgreSQL verifies mask coverage, bridge-cell "
-            "completeness, and exact source-to-normalized "
-            "unit conversion."
+            "completeness for both retained weather metrics, "
+            "and exact temperature unit conversion."
         ),
     )
 

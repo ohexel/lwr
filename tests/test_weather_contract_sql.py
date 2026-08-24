@@ -51,7 +51,10 @@ def test_weather_relations_do_not_carry_helper_fields_downstream() -> None:
         ).fetchone()
 
     for columns in (normalized_columns, analytical_columns, final_columns):
-        assert "temperature_c" in columns
+        assert {
+            "temperature_c",
+            "apparent_temperature_shade_c",
+        }.issubset(columns)
         assert FORBIDDEN_DOWNSTREAM_COLUMNS.isdisjoint(columns)
 
     assert td_count == (0,)

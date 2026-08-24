@@ -8,6 +8,10 @@ from src.forecast_key import (
     ForecastKey,
     parse_lead_time,
 )
+from src.hostrada_contract import (
+    HOSTRADA_MONTH_FORMAT,
+    HostradaMonthKey,
+)
 
 
 RUN_TIME_PARTITION_FORMAT = "%Y%m%dT%H%M"
@@ -55,6 +59,19 @@ WEATHER_PARTITIONS = dg.MultiPartitionsDefinition(
         "lead_time": LEAD_TIME_PARTITIONS,
     }
 )
+
+
+# Source files are UTC calendar months. Leave the end open so diagnostic
+# months outside the eventual 1995-2025 reference period remain materializable.
+HOSTRADA_MONTHLY_PARTITIONS = dg.MonthlyPartitionsDefinition(
+    start_date=datetime(1995, 1, 1, tzinfo=timezone.utc),
+    timezone="UTC",
+    fmt=HOSTRADA_MONTH_FORMAT,
+)
+
+
+def hostrada_month_from_partition(partition_key: str) -> HostradaMonthKey:
+    return HostradaMonthKey.from_partition_key(partition_key)
 
 
 def weather_partition_key(

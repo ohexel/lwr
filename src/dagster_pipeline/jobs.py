@@ -4,6 +4,10 @@ from src.dagster_pipeline.assets.database_analytical import (
     analytical_plr_weather,
     analytical_plr_weather_population,
 )
+from src.dagster_pipeline.assets.database_hostrada_spatial import (
+    normalized_hostrada_cell,
+    normalized_hostrada_plr_area_bridge,
+)
 from src.dagster_pipeline.assets.database_weather_normalized import (
     normalized_icon_d2_ruc_weather,
 )
@@ -40,5 +44,18 @@ ICON_D2_RUC_FORECAST_JOB = dg.define_asset_job(
         "Acquire one ICON D2 RUC forecast partition, load the "
         "Berlin-scoped source values, normalize the weather fields, "
         "area-weight them to PLRs, and join population exposure."
+    ),
+)
+
+
+HOSTRADA_SPATIAL_JOB = dg.define_asset_job(
+    name="hostrada_spatial",
+    selection=dg.AssetSelection.assets(
+        normalized_hostrada_cell,
+        normalized_hostrada_plr_area_bridge,
+    ),
+    description=(
+        "Construct the Berlin-scoped HOSTRADA cells and materialize "
+        "their reusable, quality-checked area bridge to current PLRs."
     ),
 )

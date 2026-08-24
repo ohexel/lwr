@@ -6,6 +6,9 @@ from src.dagster_pipeline.assets.database_analytical import (
 from src.dagster_pipeline.assets.database_bridge import (
     BRIDGE_ASSETS,
 )
+from src.dagster_pipeline.assets.database_hostrada_spatial import (
+    HOSTRADA_SPATIAL_ASSETS,
+)
 from src.dagster_pipeline.assets.database_population import (
     POPULATION_ASSETS,
 )
@@ -30,6 +33,9 @@ from src.dagster_pipeline.checks.database_analytical import (
 from src.dagster_pipeline.checks.database_bridge import (
     BRIDGE_CHECKS,
 )
+from src.dagster_pipeline.checks.database_hostrada_spatial import (
+    HOSTRADA_SPATIAL_CHECKS,
+)
 from src.dagster_pipeline.checks.database_population import (
     POPULATION_CHECKS,
 )
@@ -46,6 +52,7 @@ from src.dagster_pipeline.checks.database_weather_raw import (
     WEATHER_RAW_CHECKS,
 )
 from src.dagster_pipeline.jobs import (
+    HOSTRADA_SPATIAL_JOB,
     ICON_D2_RUC_FORECAST_JOB,
     ICON_D2_RUC_RAW_ACQUISITION_JOB,
 )
@@ -60,6 +67,7 @@ defs = dg.Definitions(
         *POPULATION_ASSETS,
         *SPATIAL_ASSETS,
         *BRIDGE_ASSETS,
+        *HOSTRADA_SPATIAL_ASSETS,
         *WEATHER_MASK_ASSETS,
         *WEATHER_RAW_ASSETS,
         *WEATHER_NORMALIZED_ASSETS,
@@ -69,6 +77,7 @@ defs = dg.Definitions(
         *POPULATION_CHECKS,
         *SPATIAL_CHECKS,
         *BRIDGE_CHECKS,
+        *HOSTRADA_SPATIAL_CHECKS,
         *WEATHER_MASK_CHECKS,
         *WEATHER_RAW_CHECKS,
         *WEATHER_NORMALIZED_CHECKS,
@@ -77,6 +86,7 @@ defs = dg.Definitions(
     jobs=[
         ICON_D2_RUC_RAW_ACQUISITION_JOB,
         ICON_D2_RUC_FORECAST_JOB,
+        HOSTRADA_SPATIAL_JOB,
     ],
     sensors=[
         dwd_icon_d2_ruc_availability_sensor,

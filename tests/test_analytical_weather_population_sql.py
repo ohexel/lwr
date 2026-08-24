@@ -3,7 +3,7 @@ from src.database.connection import database_connection
 
 def test_latest_partition_builds_final_analytical_sql() -> None:
     with database_connection(
-        application_name="capstone_test_phase9_analytical"
+        application_name="capstone_analytical_weather_test"
     ) as connection:
         partition = connection.execute(
             """
@@ -78,5 +78,43 @@ def test_latest_partition_builds_final_analytical_sql() -> None:
         assert quality[0] is True, quality
         assert int(quality[1]) == 542
         assert int(quality[2]) + int(quality[3]) == 542
+
+        metric_completeness = connection.execute(
+            """
+            SELECT
+                COUNT(*) FILTER (
+                    WHERE plr_weather.apparent_temperature_shade_c
+                        IS NULL
+                ),
+                COUNT(*)
+            FROM analytical.plr_weather AS plr_weather
+            WHERE plr_weather.run_time_utc = %s
+              AND plr_weather.lead_time = %s
+            """,
+            (run_time_utc, lead_time),
+        ).fetchone()
+
+        assert metric_completeness is not None
+        assert int(metric_completeness[0]) == 0
+        assert int(metric_completeness[1]) == 542
+
+        serving_view = connection.execute(
+            """
+            SELECT COUNT(*)
+            FROM analytical.current_plr_weather_population AS current_row
+            WHERE current_row.run_time_utc = %s
+              AND current_row.lead_time = %s
+              AND current_row.apparent_temperature_shade_c IS NOT NULL
+              AND current_row.apparent_temperature_delta_c
+                    IS NOT DISTINCT FROM (
+                        current_row.apparent_temperature_shade_c
+                        - current_row.temperature_c
+                    )
+            """,
+            (run_time_utc, lead_time),
+        ).fetchone()
+
+        assert serving_view is not None
+        assert int(serving_view[0]) == 542
 
         connection.rollback()

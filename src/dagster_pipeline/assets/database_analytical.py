@@ -34,8 +34,9 @@ ANALYTICAL_PLR_WEATHER_POPULATION_KEY = dg.AssetKey(
     ],
     group_name="analytical",
     description=(
-        "PostgreSQL area-weights normalized ICON weather "
-        "onto all Berlin PLRs using fraction_of_plr."
+        "PostgreSQL area-weights cell-level temperature and shade "
+        "apparent temperature onto all Berlin PLRs using "
+        "fraction_of_plr."
     ),
 )
 def analytical_plr_weather(
@@ -101,8 +102,8 @@ def analytical_plr_weather(
     ],
     group_name="analytical",
     description=(
-        "Final Berlin PLR weather and 65+ population exposure "
-        "dataset, joined in PostgreSQL."
+        "Final Berlin PLR temperature, shade apparent temperature, "
+        "and 65+ population dataset, joined in PostgreSQL."
     ),
 )
 def analytical_plr_weather_population(
