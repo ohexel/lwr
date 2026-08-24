@@ -4,6 +4,14 @@ from src.dagster_pipeline.assets.database_analytical import (
     analytical_plr_weather,
     analytical_plr_weather_population,
 )
+from src.dagster_pipeline.assets.database_hostrada_monthly import (
+    analytical_hostrada_hourly,
+    raw_hostrada_month_files,
+    raw_hostrada_month_source,
+)
+from src.dagster_pipeline.assets.database_hostrada_reference import (
+    analytical_hostrada_hourly_reference,
+)
 from src.dagster_pipeline.assets.database_hostrada_spatial import (
     normalized_hostrada_cell,
     normalized_hostrada_plr_area_bridge,
@@ -57,5 +65,31 @@ HOSTRADA_SPATIAL_JOB = dg.define_asset_job(
     description=(
         "Construct the Berlin-scoped HOSTRADA cells and materialize "
         "their reusable, quality-checked area bridge to current PLRs."
+    ),
+)
+
+
+HOSTRADA_MONTHLY_JOB = dg.define_asset_job(
+    name="hostrada_monthly",
+    selection=dg.AssetSelection.assets(
+        raw_hostrada_month_files,
+        raw_hostrada_month_source,
+        analytical_hostrada_hourly,
+    ),
+    description=(
+        "Acquire and validate three HOSTRADA source files, stream one UTC "
+        "month of Berlin cells, and materialize complete PLR and Berlin hours."
+    ),
+)
+
+
+HOSTRADA_REFERENCE_JOB = dg.define_asset_job(
+    name="hostrada_reference",
+    selection=dg.AssetSelection.assets(
+        analytical_hostrada_hourly_reference,
+    ),
+    description=(
+        "Refresh one Berlin-local calendar month of PLR and Berlin "
+        "temperature median, p90, and observed maximum references."
     ),
 )

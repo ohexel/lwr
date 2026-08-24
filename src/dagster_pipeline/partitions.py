@@ -12,6 +12,7 @@ from src.hostrada_contract import (
     HOSTRADA_MONTH_FORMAT,
     HostradaMonthKey,
 )
+from src.hostrada_reference import HOSTRADA_REFERENCE_CALENDAR_MONTHS
 
 
 RUN_TIME_PARTITION_FORMAT = "%Y%m%dT%H%M"
@@ -67,6 +68,12 @@ HOSTRADA_MONTHLY_PARTITIONS = dg.MonthlyPartitionsDefinition(
     start_date=datetime(1995, 1, 1, tzinfo=timezone.utc),
     timezone="UTC",
     fmt=HOSTRADA_MONTH_FORMAT,
+)
+
+
+# Reference partitions represent recurring Berlin-local calendar months.
+HOSTRADA_REFERENCE_PARTITIONS = dg.StaticPartitionsDefinition(
+    HOSTRADA_REFERENCE_CALENDAR_MONTHS,
 )
 
 

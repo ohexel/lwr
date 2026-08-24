@@ -1,5 +1,8 @@
 # Project files
 data/
+*.pgcustom
+snapshots/*.tar.xz
+snapshots/*.partial
 diagnostics/
 reports/generated/
 reports/profiling/

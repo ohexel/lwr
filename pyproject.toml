@@ -1,0 +1,36 @@
+[project]
+name = "capstone"
+version = "0.1.0"
+description = "Capstone project for Spiced data engineering bootcamp"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "dagster==1.13.15",
+    "dagster-dg-cli>=1.13.15",
+    "dagster-webserver==1.13.15",
+    "eccodes<2.45",
+    "geopandas>=1.1.4",
+    "jinja2>=3.1.6",
+    "netcdf4>=1.7.4",
+    "numpy>=2.4.6",
+    "psycopg[binary]>=3.3.4",
+    "pyarrow>=25.0.1",
+    "pytest>=9.1.1",
+    "requests>=2.34.2",
+]
+[tool.dg]
+directory_type = "project"
+
+[tool.dg.project]
+root_module = "src"
+code_location_target_module = "src.dagster_pipeline.definitions"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["-m", "not integration and not acceptance and not historical_rebuild"]
+markers = [
+    "integration: requires an initialized PostgreSQL/PostGIS database",
+    "acceptance: requires fully materialized static inputs and HOSTRADA references",
+    "historical_rebuild: exercises the optional HOSTRADA reconstruction workflow",
+    "contract: protects an important pipeline, data, or serving contract",
+]

@@ -6,6 +6,12 @@ from src.dagster_pipeline.assets.database_analytical import (
 from src.dagster_pipeline.assets.database_bridge import (
     BRIDGE_ASSETS,
 )
+from src.dagster_pipeline.assets.database_hostrada_monthly import (
+    HOSTRADA_MONTHLY_ASSETS,
+)
+from src.dagster_pipeline.assets.database_hostrada_reference import (
+    HOSTRADA_REFERENCE_ASSETS,
+)
 from src.dagster_pipeline.assets.database_hostrada_spatial import (
     HOSTRADA_SPATIAL_ASSETS,
 )
@@ -33,6 +39,12 @@ from src.dagster_pipeline.checks.database_analytical import (
 from src.dagster_pipeline.checks.database_bridge import (
     BRIDGE_CHECKS,
 )
+from src.dagster_pipeline.checks.database_hostrada_monthly import (
+    HOSTRADA_MONTHLY_CHECKS,
+)
+from src.dagster_pipeline.checks.database_hostrada_reference import (
+    HOSTRADA_REFERENCE_CHECKS,
+)
 from src.dagster_pipeline.checks.database_hostrada_spatial import (
     HOSTRADA_SPATIAL_CHECKS,
 )
@@ -52,12 +64,17 @@ from src.dagster_pipeline.checks.database_weather_raw import (
     WEATHER_RAW_CHECKS,
 )
 from src.dagster_pipeline.jobs import (
+    HOSTRADA_MONTHLY_JOB,
+    HOSTRADA_REFERENCE_JOB,
     HOSTRADA_SPATIAL_JOB,
     ICON_D2_RUC_FORECAST_JOB,
     ICON_D2_RUC_RAW_ACQUISITION_JOB,
 )
 from src.dagster_pipeline.sensors.dwd_weather import (
     dwd_icon_d2_ruc_availability_sensor,
+)
+from src.dagster_pipeline.static_bootstrap_job import (
+    OPERATIONAL_STATIC_JOB,
 )
 
 
@@ -68,6 +85,8 @@ defs = dg.Definitions(
         *SPATIAL_ASSETS,
         *BRIDGE_ASSETS,
         *HOSTRADA_SPATIAL_ASSETS,
+        *HOSTRADA_MONTHLY_ASSETS,
+        *HOSTRADA_REFERENCE_ASSETS,
         *WEATHER_MASK_ASSETS,
         *WEATHER_RAW_ASSETS,
         *WEATHER_NORMALIZED_ASSETS,
@@ -78,15 +97,20 @@ defs = dg.Definitions(
         *SPATIAL_CHECKS,
         *BRIDGE_CHECKS,
         *HOSTRADA_SPATIAL_CHECKS,
+        *HOSTRADA_MONTHLY_CHECKS,
+        *HOSTRADA_REFERENCE_CHECKS,
         *WEATHER_MASK_CHECKS,
         *WEATHER_RAW_CHECKS,
         *WEATHER_NORMALIZED_CHECKS,
         *ANALYTICAL_CHECKS,
     ],
     jobs=[
+        OPERATIONAL_STATIC_JOB,
         ICON_D2_RUC_RAW_ACQUISITION_JOB,
         ICON_D2_RUC_FORECAST_JOB,
         HOSTRADA_SPATIAL_JOB,
+        HOSTRADA_MONTHLY_JOB,
+        HOSTRADA_REFERENCE_JOB,
     ],
     sensors=[
         dwd_icon_d2_ruc_availability_sensor,

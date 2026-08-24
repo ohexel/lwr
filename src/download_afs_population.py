@@ -22,9 +22,11 @@ Outputs:
 from __future__ import annotations
 
 import argparse
+import csv
 import hashlib
 import json
 import logging
+import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -56,6 +58,24 @@ DIRECT_DOWNLOAD_URL = (
 OUTPUT_FILENAME = "EWR_L21_202512E_Matrix.csv"
 REFERENCE_DATE = "2025-12-31"
 TIMEOUT_SECONDS = 60
+BUNDLED_FALLBACK_PATH = (
+    Path(__file__).resolve().parent.parent
+    / "resources"
+    / "static"
+    / "population"
+    / REFERENCE_DATE
+    / OUTPUT_FILENAME
+)
+BUNDLED_FALLBACK_SHA256 = (
+    "ce1ed8d1e31c4c2064a0ed9322d2d78432fa8e928cfeabce106d81a724901c43"
+)
+REQUIRED_POPULATION_COLUMNS = {
+    "RAUMID",
+    "E_E",
+    "E_E65U80",
+    "E_E80U110",
+    "ZEIT",
+}
 
 
 def now_utc() -> str:
@@ -153,6 +173,7 @@ def download_csv(session: requests.Session, output_path: Path) -> dict:
     ]
 
     return {
+        "acquisition_mode": "direct_download",
         "published_resource_url": PUBLISHED_RESOURCE_URL,
         "configured_direct_download_url": DIRECT_DOWNLOAD_URL,
         "resolved_download_url": response.url,
@@ -166,7 +187,49 @@ def download_csv(session: requests.Session, output_path: Path) -> dict:
     }
 
 
-def main() -> int:
+def restore_bundled_csv(output_path: Path, fallback_path: Path) -> dict:
+    if not fallback_path.is_file():
+        raise FileNotFoundError(
+            "AfS direct download failed and the bundled population fallback "
+            f"is unavailable: {fallback_path}"
+        )
+
+    fallback_content = fallback_path.read_bytes()
+    fallback_sha256 = hashlib.sha256(fallback_content).hexdigest()
+    if fallback_sha256 != BUNDLED_FALLBACK_SHA256:
+        raise ValueError(
+            "Bundled AfS population fallback failed checksum validation: "
+            f"observed {fallback_sha256}; expected {BUNDLED_FALLBACK_SHA256}"
+        )
+
+    with fallback_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle, delimiter=";")
+        missing_columns = REQUIRED_POPULATION_COLUMNS.difference(
+            reader.fieldnames or []
+        )
+        if missing_columns:
+            raise ValueError(
+                "Bundled AfS population fallback is missing required columns: "
+                + ", ".join(sorted(missing_columns))
+            )
+
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(fallback_path, output_path)
+
+    return {
+        "acquisition_mode": "bundled_fallback",
+        "published_resource_url": PUBLISHED_RESOURCE_URL,
+        "configured_direct_download_url": DIRECT_DOWNLOAD_URL,
+        "resolved_download_url": None,
+        "redirect_chain": [],
+        "fallback_source_path": str(fallback_path),
+        "filename": output_path.name,
+        "size_bytes": len(fallback_content),
+        "sha256": fallback_sha256,
+    }
+
+
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description="Download AfS Berlin LOR population CSV from the direct URL."
     )
@@ -174,7 +237,13 @@ def main() -> int:
         "--output-dir",
         default=f"data/raw/population/{REFERENCE_DATE}",
     )
-    args = parser.parse_args()
+    parser.add_argument(
+        "--fallback-path",
+        type=Path,
+        default=BUNDLED_FALLBACK_PATH,
+        help="Verified source CSV used when the direct download fails.",
+    )
+    args = parser.parse_args(argv)
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents = True, exist_ok = True)
@@ -206,9 +275,22 @@ def main() -> int:
             DATASET_ID,
         )
 
-        catalogue = fetch_catalogue_metadata(session)
-        metadata["catalogue"] = catalogue
+        try:
+            catalogue = fetch_catalogue_metadata(session)
+        except (requests.RequestException, ValueError, KeyError, RuntimeError) as exc:
+            catalogue = {
+                "catalogue_url": CATALOGUE_URL,
+                "api_endpoint": CKAN_API_URL,
+                "status": "unavailable",
+                "error": str(exc),
+            }
+            logger.warning(
+                "CKAN catalogue metadata is unavailable; continuing with the "
+                "known direct AfS resource: %s",
+                exc,
+            )
 
+        metadata["catalogue"] = catalogue
         logger.info("Catalogue title: %s", catalogue.get("title"))
         logger.info("Publisher: %s", catalogue.get("publisher"))
         logger.info("License: %s", catalogue.get("license_title"))
@@ -217,10 +299,22 @@ def main() -> int:
         logger.info("Configured direct download URL: %s", DIRECT_DOWNLOAD_URL)
 
         output_path = output_dir / OUTPUT_FILENAME
-        download_info = download_csv(session, output_path)
+        try:
+            download_info = download_csv(session, output_path)
+        except (requests.RequestException, ValueError, RuntimeError) as exc:
+            logger.warning(
+                "AfS direct download failed; using the verified bundled CSV: %s",
+                exc,
+            )
+            download_info = restore_bundled_csv(output_path, args.fallback_path)
+            download_info["direct_download_error"] = str(exc)
+
         metadata["download"] = download_info
 
-        if download_info["resolved_download_url"] != DIRECT_DOWNLOAD_URL:
+        if (
+            download_info["acquisition_mode"] == "direct_download"
+            and download_info["resolved_download_url"] != DIRECT_DOWNLOAD_URL
+        ):
             logger.warning(
                 "Direct download URL resolved elsewhere: %s",
                 download_info["resolved_download_url"],
@@ -240,6 +334,7 @@ def main() -> int:
             "Final resolved download URL: %s",
             download_info["resolved_download_url"],
         )
+        logger.info("Acquisition mode: %s", download_info["acquisition_mode"])
         logger.info("Saved file: %s", output_path)
         logger.info("Bytes: %d", download_info["size_bytes"])
         logger.info("SHA-256: %s", download_info["sha256"])

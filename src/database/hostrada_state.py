@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from psycopg import Connection
 
+from src.database.connection import database_connection
+from src.database.spatial_state import current_geography_version
 from src.hostrada_contract import (
     HOSTRADA_DATASET_VERSION,
     HOSTRADA_GRID_CONTRACT,
+    HostradaMonthKey,
 )
 
 
@@ -78,3 +83,58 @@ def ensure_hostrada_grid(connection: Connection) -> str:
         )
 
     return contract.source_grid_id
+
+
+@dataclass(frozen=True)
+class HostradaMonthQuality:
+    source_month: str
+    geography_version: str
+    passed: bool
+    source_file_count: int
+    expected_hour_count: int
+    expected_plr_count: int
+    plr_hour_count: int
+    berlin_hour_count: int
+    incomplete_plr_hour_count: int
+    missing_berlin_hour_count: int
+
+
+def query_hostrada_month_quality(
+    month: HostradaMonthKey,
+) -> HostradaMonthQuality:
+    """Use complete persisted outputs as the historical restart checkpoint."""
+    with database_connection(
+        application_name="capstone_hostrada_backfill_checkpoint"
+    ) as connection:
+        geography_version = current_geography_version(connection)
+        result = connection.execute(
+            """
+            SELECT *
+            FROM analytical.check_hostrada_month_quality(
+                %s::DATE,
+                %s::TEXT,
+                %s::TEXT
+            )
+            """,
+            (
+                month.start_utc.date(),
+                geography_version,
+                HOSTRADA_GRID_CONTRACT.source_grid_id,
+            ),
+        ).fetchone()
+
+    if result is None:
+        raise RuntimeError("HOSTRADA monthly quality check returned no result")
+
+    return HostradaMonthQuality(
+        source_month=month.partition_key,
+        geography_version=geography_version,
+        passed=bool(result[0]),
+        source_file_count=int(result[1]),
+        expected_hour_count=int(result[2]),
+        expected_plr_count=int(result[3]),
+        plr_hour_count=int(result[4]),
+        berlin_hour_count=int(result[5]),
+        incomplete_plr_hour_count=int(result[6]),
+        missing_berlin_hour_count=int(result[7]),
+    )

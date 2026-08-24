@@ -1,0 +1,30 @@
+{
+  "format_version": 1,
+  "artifact": {
+    "filename": "hostrada-reference-1995-2025.pgcustom",
+    "format": "postgresql-custom-data-only",
+    "size_bytes": 231645982,
+    "sha256": "a4552e534c59a44529849c010b5771598fc41b3cd3ae1023d03f07ec79825145"
+  },
+  "reference": {
+    "start_year": 1995,
+    "end_year": 2025,
+    "timezone": "Europe/Berlin",
+    "february_29": "excluded",
+    "calendar_hour_count": 8760,
+    "included_berlin_observation_count": 271559
+  },
+  "geography": {
+    "version": "2023-01-01",
+    "plr_count": 542,
+    "sorted_plr_ids_sha256": "9c48883d882ff09c5b363f96eeb3c05e930b02d6a92218548b2a1a73a7ea1bdd"
+  },
+  "tables": {
+    "analytical.hostrada_plr_hourly_reference": {
+      "expected_row_count": 4747920
+    },
+    "analytical.hostrada_berlin_hourly_reference": {
+      "expected_row_count": 8760
+    }
+  }
+}
