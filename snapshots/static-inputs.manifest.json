@@ -1,0 +1,26 @@
+{
+  "format_version": 1,
+  "artifact": {
+    "filename": "static-inputs.tar.xz",
+    "format": "xz-compressed-tar-with-embedded-manifest",
+    "size_bytes": 198011500,
+    "sha256": "04f492c291fb96285568a68645de5262f09b63d77d1fd97c9fe5b15f57c1aae6"
+  },
+  "sources": {
+    "icon_grid": {
+      "path": "data/raw/icon_d2_grid/icon_grid_0047_R19B07_L.nc.bz2",
+      "sha256": "985ae3f69611fa224c5506417520f6291d14f3135a73d5e88901a24e99dc6648",
+      "size_bytes": 201429184
+    },
+    "lor_plr": {
+      "path": "data/raw/berlin/lor/lor_planungsraum.geojson",
+      "sha256": "201b5db59b690e6feb1ca175754242f44a2bc4dbe26ab89800147d2a091b6d24",
+      "size_bytes": 18248622
+    },
+    "population": {
+      "path": "data/raw/population/2025-12-31/EWR_L21_202512E_Matrix.csv",
+      "sha256": "ce1ed8d1e31c4c2064a0ed9322d2d78432fa8e928cfeabce106d81a724901c43",
+      "size_bytes": 117296
+    }
+  }
+}

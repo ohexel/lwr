@@ -15,6 +15,7 @@ from src.dagster_pipeline.partitions import (
     WEATHER_PARTITIONS,
     forecast_key_from_partition,
 )
+from src.retention.weather_raw import prune_forecast_data
 
 
 ANALYTICAL_PLR_WEATHER_KEY = dg.AssetKey(
@@ -154,6 +155,14 @@ def analytical_plr_weather_population(
             f"{metadata}"
         )
 
+    retention = prune_forecast_data(dry_run=False)
+    metadata.update(
+        {
+            "forecast_retention_hours": retention.retention_hours,
+            "expired_forecast_rows_deleted": retention.database.total_affected_rows,
+            "expired_forecast_files_deleted": retention.raw_files.deleted_file_count,
+        }
+    )
     context.add_output_metadata(metadata)
 
 

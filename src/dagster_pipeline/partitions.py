@@ -13,21 +13,14 @@ from src.hostrada_contract import (
     HostradaMonthKey,
 )
 from src.hostrada_reference import HOSTRADA_REFERENCE_CALENDAR_MONTHS
+from src.retention.forecast_policy import forecast_partition_window_start
 
 
 RUN_TIME_PARTITION_FORMAT = "%Y%m%dT%H%M"
 
-# This tells Dagster the earliest canonical date that data could theoretically
-# have. If we requested a partition with an earlier date, Dagster would not
-# recognize it. This is independent from DWD ICON D2 RUC's rolling 24h window.
-WEATHER_HISTORY_START = datetime(
-    2026,
-    8,
-    13,
-    0,
-    0,
-    tzinfo=timezone.utc,
-)
+# Dagster captures this bound when its code location loads. Reloading the
+# location advances the visible window and removes expired historical runs.
+WEATHER_HISTORY_START = forecast_partition_window_start()
 
 # DWD ICON D2 RUC provides 28 lead time forecasts from 0 to 27 hours. I restrict
 # accepted lead times (i.e. partition dimensions) to a smaller set because there
@@ -47,7 +40,7 @@ RUN_TIME_PARTITIONS = dg.HourlyPartitionsDefinition(
     start_date=WEATHER_HISTORY_START,
     timezone="UTC",
     fmt=RUN_TIME_PARTITION_FORMAT,
-    end_offset = 1
+    end_offset=1,
 )
 
 LEAD_TIME_PARTITIONS = dg.StaticPartitionsDefinition(

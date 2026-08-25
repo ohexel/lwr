@@ -13,7 +13,6 @@ import requests
 
 from src.bootstrap import ensure_dagster_home
 from src.dagster_pipeline.partitions import (
-    WEATHER_HISTORY_START,
     WEATHER_LEAD_TIMES,
     weather_partition_key,
 )
@@ -27,6 +26,10 @@ from src.forecast_key import (
     ProjectPaths,
     RUN_LABEL_FORMAT,
     parse_lead_time,
+)
+from src.retention.forecast_policy import (
+    forecast_partition_window_start,
+    forecast_retention_hours,
 )
 
 
@@ -104,11 +107,13 @@ def run_forecast(
 
     if run_time.minute != 0:
         raise ValueError("Forecast run time must begin on a full UTC hour.")
-    if run_time < WEATHER_HISTORY_START:
+    oldest_supported_run = forecast_partition_window_start()
+    if run_time < oldest_supported_run:
         raise ForecastUnavailableError(
-            f"Forecast run {run_time:%Y-%m-%d %H:%M} UTC predates the "
-            f"supported project partition start "
-            f"({WEATHER_HISTORY_START:%Y-%m-%d %H:%M} UTC)."
+            f"Forecast run {run_time:%Y-%m-%d %H:%M} UTC is outside the "
+            f"configured {forecast_retention_hours()}-hour retention window. "
+            f"Choose a run at or after "
+            f"{oldest_supported_run:%Y-%m-%d %H:%M} UTC."
         )
     if run_time > datetime.now(timezone.utc):
         raise ForecastUnavailableError(

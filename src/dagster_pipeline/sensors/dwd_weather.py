@@ -8,7 +8,6 @@ from src.dagster_pipeline.jobs import (
     ICON_D2_RUC_FORECAST_JOB,
 )
 from src.dagster_pipeline.partitions import (
-    WEATHER_HISTORY_START,
     WEATHER_LEAD_TIMES,
     weather_partition_key,
 )
@@ -20,6 +19,7 @@ from src.dwd_weather_availability import (
     dwd_polling_window_open,
     find_ready_weather_forecasts,
 )
+from src.retention.forecast_policy import forecast_partition_window_start
 
 
 RUN_DISCOVERY_INDICATOR = "T_2M"
@@ -117,7 +117,7 @@ def dwd_icon_d2_ruc_availability_sensor(
                     weather_population_partition_complete
                 ),
                 lead_time_labels=WEATHER_LEAD_TIMES,
-                minimum_run_time=WEATHER_HISTORY_START,
+                minimum_run_time=forecast_partition_window_start(),
                 max_run_times=SENSOR_MAX_RUN_TIMES,
             )
 
