@@ -23,6 +23,7 @@ services:
     volumes:
       - ..:/app
       - ./dagster-container.env:/app/.env:ro
+      - ./dagster.yaml:/app/.dagster_home/dagster.yaml:ro
     depends_on:
       postgres:
         condition: service_healthy
