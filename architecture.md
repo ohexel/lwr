@@ -194,6 +194,32 @@ Historical joins are left joins. Forecasts occurring on Berlin-local February
 population reference date, source checksums, sample counts, threshold flags,
 and exposure classifications stay out of the serving contract.
 
+### Complete 25-point forecast and neighborhood summary
+
+The feature branch adds two separate, presentation-oriented views without
+changing the existing 23-column single-partition contract:
+
+| Relation | Grain | Expected rows |
+| --- | --- | ---: |
+| `analytical.current_plr_temperature_forecast_25h` | One PLR and one forecast lead hour, 0–24. | 13,550 |
+| `analytical.current_plr_temperature_summary_25h` | One PLR across the complete forecast horizon. | 542 |
+
+Both views select the newest model run containing all 25 lead hours for all
+installed PLRs. A newer incomplete run never displaces a previous complete
+horizon. Public forecast timestamps are expressed in Berlin local time.
+
+For each PLR, the summary reports the highest forecast temperature and its
+earliest local occurrence, the largest **signed** forecast-minus-historical-
+median difference and its earliest occurrence, the sum of all 25 signed
+differences, and the existing population values/status. A negative maximum
+difference remains negative when every forecast hour is below its historical
+median; absolute differences are never substituted.
+
+The detailed plotting view reads only the established forecast context and its
+already-installed reference medians. It does not read, rebuild, or retain the
+147-million-row HOSTRADA historical observation table. Separate per-year
+historical trajectory data remains deferred.
+
 ## Failure boundaries and restart behavior
 
 - The database bootstrap applies one canonical schema to an empty database and
@@ -206,6 +232,8 @@ and exposure classifications stay out of the serving contract.
 - Forecast files and forecast-only PostgreSQL rows share a rolling retention
   window of at most 24 hours; retained files remain reprocessable within that
   window without relying on upstream availability.
+- The 25-point forecast runner processes one lead at a time, resumes validated
+  partitions, and publishes a horizon only after every PLR and lead is present.
 - The optional historical backfill commits one validated month at a time and
   removes its large source files only after durable outputs pass validation.
 

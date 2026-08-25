@@ -81,6 +81,7 @@ that optional environment.
 | Concern | Representative tests | Protected assumption |
 | --- | --- | --- |
 | Forecast identity and source publication | `test_forecast_key.py`, `test_run_forecast.py`, `test_weather_source_contract.py` | Forecast runs are UTC, have supported lead times, and fail clearly when unpublished or expired. |
+| Complete forecast horizons | `test_forecast_horizon.py`, `test_forecast_horizon_sql.py`, `test_dagster_partitions.py` | Exactly 25 hourly leads use existing historical medians; signed differences, earliest-time ties, rejected population, restart behavior, and incomplete newer runs remain correct. |
 | Geography and forecast-grid compatibility | `test_icon_grid_contract.py`, `test_spatial_bridge_sql.py` | The declared grid, PLR geometry, and area-weighted bridge remain compatible. |
 | Population quality | `test_population_sql_quality_gate.py`, `test_bootstrap.py` | Malformed source records are rejected explicitly; the checked-in CSV fallback remains usable. |
 | Analyst-facing PLR names | `test_plr_display_names.py`, `test_bootstrap_acceptance.py` | All 542 official labels match the PLR geography; leading zeroes, German characters, duplicate names, and offline fallback remain correct. |

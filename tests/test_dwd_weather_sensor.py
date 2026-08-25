@@ -234,6 +234,47 @@ def test_sensor_emits_all_ready_partitions_as_first_attempts(
     )
 
 
+def test_sensor_limits_forecast_run_requests_per_tick(
+    monkeypatch,
+    sensor_instance,
+):
+    _patch_run_discovery(monkeypatch)
+    observed_discovery_arguments = {}
+    ready = tuple(
+        ForecastAvailability(
+            forecast=_forecast(f"PT{hour:03d}H00M"),
+            missing_indicators=(),
+        )
+        for hour in range(8)
+    )
+
+    def limited_discovery(*args, **kwargs):
+        observed_discovery_arguments.update(kwargs)
+        return WeatherAvailabilityDecision(
+            ready=ready,
+            latest_incomplete=None,
+            checked_forecasts=len(ready),
+            already_complete_forecasts=0,
+        )
+
+    monkeypatch.setattr(
+        dwd_weather,
+        "find_ready_weather_forecasts",
+        limited_discovery,
+    )
+    _patch_previous_runs(monkeypatch, [])
+
+    tick = dwd_weather.dwd_icon_d2_ruc_availability_sensor.evaluate_tick(
+        _sensor_context(sensor_instance)
+    )
+
+    assert observed_discovery_arguments["max_ready_forecasts"] == 5
+    assert len(tick.run_requests) == 5
+    assert [request.tags["forecast_lead_time"] for request in tick.run_requests] == [
+        f"PT{hour:03d}H00M" for hour in range(5)
+    ]
+
+
 def test_sensor_retries_failed_partition_with_new_attempt(
     monkeypatch,
     sensor_instance,

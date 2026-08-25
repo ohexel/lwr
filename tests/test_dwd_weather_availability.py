@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+import pytest
+
 from src.dwd_weather_availability import (
     check_forecast_availability,
     find_ready_weather_forecasts,
@@ -247,3 +249,38 @@ def test_already_complete_forecasts_are_skipped():
         == 1
     )
     assert decision.checked_forecasts == 1
+
+
+def test_ready_forecast_limit_stops_source_checks_after_bounded_batch():
+    checked_fields = []
+
+    def available(session, *, indicator, forecast):
+        checked_fields.append((indicator, forecast.lead_time_label))
+        return True
+
+    decision = find_ready_weather_forecasts(
+        object(),
+        advertised_run_times=[datetime(2026, 8, 19, 15, tzinfo=timezone.utc)],
+        lead_time_labels=tuple(f"PT{hour:03d}H00M" for hour in range(25)),
+        minimum_run_time=datetime(2026, 8, 19, tzinfo=timezone.utc),
+        max_ready_forecasts=5,
+        already_complete_fn=lambda forecast: False,
+        field_available_fn=available,
+    )
+
+    assert len(decision.ready) == 5
+    assert decision.checked_forecasts == 5
+    assert len(checked_fields) == 20
+    assert decision.ready[-1].forecast.lead_time_label == "PT004H00M"
+
+
+def test_ready_forecast_limit_must_be_positive():
+    with pytest.raises(ValueError, match="must be positive"):
+        find_ready_weather_forecasts(
+            object(),
+            advertised_run_times=[],
+            lead_time_labels=(),
+            minimum_run_time=datetime(2026, 8, 19, tzinfo=timezone.utc),
+            max_ready_forecasts=0,
+            already_complete_fn=lambda forecast: False,
+        )

@@ -22,17 +22,13 @@ RUN_TIME_PARTITION_FORMAT = "%Y%m%dT%H%M"
 # location advances the visible window and removes expired historical runs.
 WEATHER_HISTORY_START = forecast_partition_window_start()
 
-# DWD ICON D2 RUC provides 28 lead time forecasts from 0 to 27 hours. I restrict
-# accepted lead times (i.e. partition dimensions) to a smaller set because there
-# is no business reasons to indiscriminately grab all data. Which lead
-# times/data we collect, should be grounded in business logic.
-WEATHER_LEAD_TIMES = (
-    "PT000H00M",
-    "PT001H00M",
-    "PT002H00M",
-    "PT006H00M",
-    "PT012H00M",
-    "PT024H00M",
+# DWD ICON-D2-RUC supplies hourly leads 0-27. The forecast trajectory needs
+# precisely leads 0-24: 25 observations spanning the next 24 hours.
+FORECAST_HORIZON_MAX_LEAD_HOURS = 24
+FORECAST_HORIZON_POINT_COUNT = FORECAST_HORIZON_MAX_LEAD_HOURS + 1
+WEATHER_LEAD_TIMES = tuple(
+    f"PT{lead_hour:03d}H00M"
+    for lead_hour in range(FORECAST_HORIZON_POINT_COUNT)
 )
 
 

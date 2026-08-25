@@ -152,6 +152,36 @@ Existing validated local GRIB files can still be reprocessed after upstream
 removal. If all four fields are already retained, the command does not contact
 DWD for that partition.
 
+### Materialize a complete 25-point forecast
+
+An existing database needs the additive forecast-serving views once; this
+command preserves all existing data:
+
+```bash
+bash scripts/bootstrap_database.sh
+```
+
+Process lead hours 0 through 24 sequentially for the same UTC model run:
+
+```bash
+uv run --env-file .env python -m src.run_forecast_horizon \
+  --run-time "$(date -u -d '2 hours ago' +%Y%m%dT%H00)"
+```
+
+The command downloads up to four forecast fields per lead, skips partitions
+that already pass the final PostgreSQL quality gate, and can be restarted
+after an interruption. Its final quality result must report:
+
+```text
+plr_count:              542
+lead_hour_count:         25
+forecast_row_count:  13,550
+summary_row_count:      542
+```
+
+It requires the existing compact historical-reference snapshot but does not
+query or rebuild historical hourly HOSTRADA observations.
+
 ## Dagster monitoring and automation
 
 Use the same `DAGSTER_HOME` in every shell:
@@ -182,6 +212,7 @@ Sensor behavior:
 - Polls during minutes `:30`–`:59` of each hour.
 - Requires all four forecast fields for the same run and lead time.
 - Skips partitions whose final temperature/population contract is already valid.
+- Discovers and submits at most five ready forecast partitions per evaluation.
 - Preserves forecast run history and asset lineage under `DAGSTER_HOME`.
 
 The manual forecast runner does not require the sensor to be started.
@@ -238,6 +269,44 @@ docker compose --env-file .env -f docker/postgres.yml \
       population_status
     FROM analytical.current_plr_weather_context
     ORDER BY plr_id
+    LIMIT 10;
+  "
+```
+
+Inspect the complete current temperature series for one planning area:
+
+```bash
+docker compose --env-file .env -f docker/postgres.yml \
+  exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+    SELECT
+      lead_hour,
+      valid_time_berlin,
+      ROUND(forecast_temperature_c::numeric, 1) AS forecast_c,
+      ROUND(historical_temperature_median_c::numeric, 1) AS median_c,
+      ROUND(temperature_difference_c::numeric, 1) AS difference_c
+    FROM analytical.current_plr_temperature_forecast_25h
+    WHERE plr_id = '01100101'
+    ORDER BY lead_hour;
+  "
+```
+
+Inspect the compact one-row-per-PLR summary:
+
+```bash
+docker compose --env-file .env -f docker/postgres.yml \
+  exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+    SELECT
+      plr_id,
+      plr_name,
+      max_forecast_temperature_c,
+      max_forecast_temperature_at_berlin,
+      max_temperature_difference_c,
+      max_temperature_difference_at_berlin,
+      sum_temperature_difference_c,
+      population_65plus,
+      population_status
+    FROM analytical.current_plr_temperature_summary_25h
+    ORDER BY max_temperature_difference_c DESC
     LIMIT 10;
   "
 ```

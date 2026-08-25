@@ -68,6 +68,52 @@ Forecast run labels use UTC; very recent runs may not yet be published and
 older runs may have left DWD's rolling availability window. A complete
 partition contains all 542 planning areas. The Dagster UI is not required.
 
+## Run the complete 25-point temperature forecast
+
+This feature branch also supports a complete 24-hour horizon: lead hours 0
+through 24 produce **25 hourly observations for each of Berlin's 542 PLRs**.
+For an existing installation, install the additive serving views once:
+
+```bash
+bash scripts/bootstrap_database.sh
+```
+
+Run all forecast partitions sequentially, automatically skipping any that are
+already complete:
+
+```bash
+uv run --env-file .env python -m src.run_forecast_horizon \
+  --run-time "$(date -u -d '2 hours ago' +%Y%m%dT%H00)"
+```
+
+Inspect the compact neighborhood summary:
+
+```bash
+docker compose --env-file .env -f docker/postgres.yml \
+  exec -T postgres \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+    SELECT
+      plr_name,
+      ROUND(max_forecast_temperature_c::numeric, 1) AS maximum_c,
+      max_forecast_temperature_at_berlin AS maximum_at,
+      ROUND(max_temperature_difference_c::numeric, 1)
+        AS maximum_above_historical_median_c,
+      ROUND(sum_temperature_difference_c::numeric, 1)
+        AS sum_of_hourly_differences_c,
+      population_65plus
+    FROM analytical.current_plr_temperature_summary_25h
+    ORDER BY max_temperature_difference_c DESC
+    LIMIT 10;
+  "'
+```
+
+The separate `analytical.current_plr_temperature_forecast_25h` view provides
+all 13,550 plotting points, including forecast temperatures, corresponding
+PLR-specific historical medians, and signed differences. Both views switch to
+a newer model run only after all 25 lead times are complete. This phase uses
+the existing historical-reference snapshot; individual yearly historical
+trajectories are a separate, deferred extension.
+
 ## Start here
 
 | Document | Use it when you want to... |

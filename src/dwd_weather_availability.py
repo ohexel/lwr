@@ -79,6 +79,7 @@ def find_ready_weather_forecasts(
     lead_time_labels: Sequence[str],
     minimum_run_time: datetime,
     max_run_times: int = 6,
+    max_ready_forecasts: int | None = None,
     already_complete_fn: Callable[
         [ForecastKey],
         bool,
@@ -96,6 +97,9 @@ def find_ready_weather_forecasts(
     candidates are still checked so one incomplete run does not block a
     complete partition behind it.
     """
+    if max_ready_forecasts is not None and max_ready_forecasts < 1:
+        raise ValueError("max_ready_forecasts must be positive")
+
     run_times = sorted(
         {
             run_time
@@ -137,6 +141,16 @@ def find_ready_weather_forecasts(
 
             if availability.complete:
                 ready.append(availability)
+                if (
+                    max_ready_forecasts is not None
+                    and len(ready) >= max_ready_forecasts
+                ):
+                    return WeatherAvailabilityDecision(
+                        ready=tuple(ready),
+                        latest_incomplete=latest_incomplete,
+                        checked_forecasts=checked,
+                        already_complete_forecasts=already_complete,
+                    )
                 continue
 
             if latest_incomplete is None:
