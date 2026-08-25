@@ -126,6 +126,26 @@ The resulting `analytical.current_plr_temperature_history_25h` view contains
 historical years. The compact reference archive alone cannot reconstruct these
 individual observations, and ordinary installations do not need this feature.
 
+## Explore the interactive Berlin map locally
+
+After the 25-hour forecast and optional historical trajectories are ready,
+export the current results and start a local preview:
+
+```bash
+uv run --env-file .env python -m src.export_temperature_dashboard --serve
+```
+
+Open <http://127.0.0.1:8765/>. Hover over a planning area to inspect its
+25-hour summary and compare the forecast with its historical median and each
+individual year from 1995 through 2025. Search and click-to-pin also support
+keyboard and touch use.
+
+The dashboard is plain HTML, CSS, SVG, JavaScript, and static JSON. It has no
+frontend package, map-tile, CDN, or production database dependency. The same
+folder can therefore be uploaded to a static website. See
+[docs/static-temperature-dashboard.md](docs/static-temperature-dashboard.md)
+for iteration, export, and deployment details.
+
 ## Start here
 
 | Document | Use it when you want to... |
@@ -135,6 +155,7 @@ individual observations, and ordinary installations do not need this feature.
 | [docs/data-sources.md](docs/data-sources.md) | Check source contracts, acquisition behavior, licenses, and attribution. |
 | [docs/distribution.md](docs/distribution.md) | Obtain, verify, or publish the external installation archives. |
 | [docs/testing.md](docs/testing.md) | Choose the small set of tests appropriate to your environment. |
+| [docs/static-temperature-dashboard.md](docs/static-temperature-dashboard.md) | Preview and publish the interactive PLR map as static files. |
 | [docs/historical-rebuild.md](docs/historical-rebuild.md) | Optionally reconstruct the HOSTRADA reference from original DWD data. |
 | [docs/adr/README.md](docs/adr/README.md) | Review the principal architectural decisions and their tradeoffs. |
 

@@ -14,6 +14,7 @@ and serving contract are shaped as they are.
 8. [Canonical schema and safe restart](008-canonical-schema-and-safe-restart.md)
 9. [Berlin-scoped forecast storage and bounded retention](adr_013_weather_storage_scope_and_retention.md)
 10. [Complete forecast horizon and median-based summary](009-complete-forecast-horizon-and-median-summary.md)
+11. [Static, dependency-free temperature dashboard](010-static-temperature-dashboard.md)
 
 Earlier working notes or development-era ADRs may remain in this directory as
 project detail. The records linked above describe the supported handoff state;

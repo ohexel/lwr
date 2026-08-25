@@ -235,6 +235,21 @@ historical median. Historical extraction is transactional, repeatable, and
 never changes the original hourly observations, compact reference tables,
 existing forecast view, or neighborhood summary.
 
+### Static temperature dashboard
+
+The optional presentation export reads the three 25-hour serving views and
+`normalized.plr`, simplifies the EPSG:25833 boundaries in PostGIS, and writes
+a self-contained static folder. One map file contains 542 geometries and their
+compact summaries. One small detail file per PLR contains its 25 forecast and
+median points plus 31 historical-year trajectories; the browser requests a
+detail only when that neighborhood is selected.
+
+The browser draws projected PLR boundaries and line charts directly in SVG
+using local HTML, CSS, and JavaScript. It uses no map tiles, frontend framework,
+CDN, API endpoint, or live database connection. This keeps PostgreSQL
+credentials out of the website and makes the exported folder deployable on an
+ordinary static host.
+
 ## Failure boundaries and restart behavior
 
 - The database bootstrap applies one canonical schema to an empty database and

@@ -66,6 +66,7 @@ CONTRACT_TEST_FILES = {
     "test_population_sql_quality_gate.py",
     "test_plr_display_names.py",
     "test_run_forecast.py",
+    "test_temperature_dashboard.py",
     "test_spatial_bridge_sql.py",
     "test_static_snapshot.py",
     "test_weather_contract_sql.py",
