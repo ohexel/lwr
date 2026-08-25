@@ -13,6 +13,9 @@ downloadable archives.
 | `hostrada-reference-1995-2025.pgcustom` | Precomputed 1995–2025 PLR and Berlin historical reference. | Required for the normal operational installation. | 231,645,982 bytes | `a4552e534c59a44529849c010b5771598fc41b3cd3ae1023d03f07ec79825145` |
 | `static-inputs.tar.xz` | Verified LOR, population, and ICON-grid fallback. | Optional; required for a fully offline static bootstrap. | 198,011,500 bytes | `04f492c291fb96285568a68645de5262f09b63d77d1fd97c9fe5b15f57c1aae6` |
 
+Download the required
+[HOSTRADA reference archive](https://www.ohexel.com/files/hostrada-reference-1995-2025.pgcustom).
+
 Authoritative repository metadata:
 
 - `snapshots/hostrada-reference-1995-2025.manifest.json`

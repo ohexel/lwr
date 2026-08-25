@@ -11,7 +11,8 @@ is a separate, optional procedure documented in
 - `uv` and Python 3.11.
 - The repository's tracked `pyproject.toml`, `uv.lock`, `.env.example`,
   `docker/postgres.yml`, canonical SQL schema, and HOSTRADA reference manifest.
-- The externally distributed HOSTRADA reference archive.
+- The externally distributed
+  [HOSTRADA reference archive](https://www.ohexel.com/files/hostrada-reference-1995-2025.pgcustom).
 - Optionally, the externally distributed static-input archive.
 - A persistent Docker volume for PostgreSQL and a persistent `DAGSTER_HOME`
   directory for Dagster run history.
