@@ -15,6 +15,8 @@ The default selection requires neither a running database nor a live external
 source. It exercises forecast identifiers, source acquisition boundaries,
 snapshot handling, restart safety, static contracts, and the public forecast
 runner. Optional historical-rebuild modules are excluded before collection.
+Optional Dagster-container tests are collected only when the active checkout
+includes `docker/dagster.yml`.
 
 For a focused review of the most important database-free contracts:
 
@@ -87,7 +89,7 @@ that optional environment.
 | HOSTRADA references | `test_hostrada_reference.py`, `test_hostrada_reference_sql.py`, `test_hostrada_snapshot.py` | Berlin-local calendar rules, sample counts, geography fingerprint, and the lean serving contract remain intact. |
 | Bootstrap and release artifacts | `test_bootstrap.py`, `test_bootstrap_snapshot_sql.py`, `test_static_snapshot.py`, `test_distribution_manifest.py` | Canonical initialization is non-destructive, restores are verified, and published manifests match runtime assumptions. |
 | End-to-end readiness | `test_bootstrap_acceptance.py` | A clean installation serves all 542 PLRs with valid references, 540 accepted populations, and two explicit rejections without historical backfill data. |
-| Raw-file lifecycle | `test_weather_raw_retention.py`, `test_run_forecast.py` | Forecast cleanup is deliberate and retained local source files remain reprocessable. |
+| Forecast retention | `test_weather_raw_retention.py`, `test_dagster_partitions.py`, `test_run_forecast.py` | Forecast files, forecast-only PostgreSQL tables, manual runs, and visible Dagster partitions share an hourly window capped at 24 hours; HOSTRADA data remains untouched. |
 
 Markers are assigned centrally in `tests/conftest.py`; their definitions and
 the default selection live in `pyproject.toml`.

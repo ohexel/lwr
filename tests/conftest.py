@@ -65,6 +65,7 @@ CONTRACT_TEST_FILES = {
     "test_weather_contract_sql.py",
     "test_weather_early_filtering.py",
     "test_weather_source_contract.py",
+    "test_weather_raw_retention.py",
 }
 
 
@@ -72,7 +73,12 @@ def pytest_ignore_collect(
     collection_path: Path,
     config: pytest.Config,
 ) -> bool | None:
-    """Exclude optional rebuild modules before pytest attempts to import them."""
+    """Exclude optional workflows unavailable in the active project checkout."""
+    if collection_path.name == "test_dagster_container.py":
+        project_root = collection_path.parent.parent
+        if not (project_root / "docker" / "dagster.yml").is_file():
+            return True
+
     if collection_path.name not in HISTORICAL_REBUILD_FILES:
         return None
 

@@ -14,7 +14,7 @@ A DWD availability sensor will be a first-class component. It will check whether
 Raw GRIB files are retained locally after successful ingestion. This creates an important distinction between two kinds of backfill:
 
 - **Acquisition backfill** depends on the limited rolling DWD source window and is only possible while the original forecast files remain upstream.
-- **Reprocessing backfill** uses locally retained raw files and can rerun normalization and downstream transformations independently of DWD retention.
+- **Reprocessing backfill** uses locally retained raw files and can rerun normalization and downstream transformations independently of DWD retention while the forecast remains inside the project's maximum 24-hour local retention window.
 
 Dagster will manage partition history, triggering, lineage, run status, and reprocessing. Existing Python functions remain responsible for ingestion, validation, profiling, spatial transformation, and analytical logic.
 

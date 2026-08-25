@@ -35,8 +35,13 @@ def sensor_instance():
 def _forecast(
     lead_time: str = "PT000H00M",
 ) -> ForecastKey:
+    current_run = datetime.now(timezone.utc).replace(
+        minute=0,
+        second=0,
+        microsecond=0,
+    )
     return ForecastKey.from_dwd_labels(
-        run_time="2026-08-19T15:00",
+        run_time=current_run.strftime("%Y-%m-%dT%H:%M"),
         lead_time=lead_time,
     )
 
@@ -57,15 +62,7 @@ def _patch_run_discovery(
     monkeypatch.setattr(
         dwd_weather,
         "advertised_run_times",
-        lambda session, indicator: [
-            datetime(
-                2026,
-                8,
-                19,
-                15,
-                tzinfo=timezone.utc,
-            )
-        ],
+        lambda session, indicator: [_forecast().run_time],
     )
 
 
@@ -202,7 +199,7 @@ def test_sensor_emits_all_ready_partitions_as_first_attempts(
         dg.MultiPartitionKey(
             {
                 "run_time": (
-                    "20260819T1500"
+                    lead_zero.run_label
                 ),
                 "lead_time": (
                     "PT000H00M"
@@ -213,7 +210,7 @@ def test_sensor_emits_all_ready_partitions_as_first_attempts(
 
     assert zero_request.run_key == (
         "dwd_icon_d2_ruc_forecast:"
-        "20260819T1500:"
+        f"{lead_zero.run_label}:"
         "PT000H00M:"
         "attempt_1"
     )
@@ -227,7 +224,7 @@ def test_sensor_emits_all_ready_partitions_as_first_attempts(
 
     assert one_request.run_key == (
         "dwd_icon_d2_ruc_forecast:"
-        "20260819T1500:"
+        f"{lead_one.run_label}:"
         "PT001H00M:"
         "attempt_1"
     )
@@ -289,7 +286,7 @@ def test_sensor_retries_failed_partition_with_new_attempt(
 
     assert request.run_key == (
         "dwd_icon_d2_ruc_forecast:"
-        "20260819T1500:"
+        f"{forecast.run_label}:"
         "PT000H00M:"
         "attempt_2"
     )

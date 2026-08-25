@@ -203,8 +203,9 @@ and exposure classifications stay out of the serving contract.
 - HOSTRADA reference import is atomic and rejects incompatible PLR geography.
 - Dagster asset checks prevent incomplete partitions from being reported as
   successful.
-- Retained forecast files allow processing to resume without relying on DWD's
-  short upstream retention window.
+- Forecast files and forecast-only PostgreSQL rows share a rolling retention
+  window of at most 24 hours; retained files remain reprocessable within that
+  window without relying on upstream availability.
 - The optional historical backfill commits one validated month at a time and
   removes its large source files only after durable outputs pass validation.
 

@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 import dagster as dg
 
 from src.dagster_pipeline.partitions import (
+    RUN_TIME_PARTITIONS,
     WEATHER_PARTITIONS,
     forecast_key_from_partition,
     weather_partition_key,
@@ -39,24 +40,26 @@ def test_weather_partition_round_trip():
 
 
 def test_hourly_partition_definition_contains_expected_run():
-    partition_keys = (
-        WEATHER_PARTITIONS.get_partition_keys(
-            current_time=datetime(
-                2026,
-                8,
-                19,
-                13,
-                0,
-                tzinfo=timezone.utc,
-            )
-        )
+    current_time = datetime.now(timezone.utc).replace(
+        minute=0,
+        second=0,
+        microsecond=0,
     )
+    partition_keys = WEATHER_PARTITIONS.get_partition_keys(current_time=current_time)
 
     assert any(
         key.keys_by_dimension
         == {
-            "run_time": "20260819T1200",
+            "run_time": current_time.strftime("%Y%m%dT%H%M"),
             "lead_time": "PT000H00M",
         }
         for key in partition_keys
     )
+
+
+def test_dagster_forecast_window_starts_with_at_most_24_run_partitions():
+    current_time = datetime.now(timezone.utc)
+    run_keys = RUN_TIME_PARTITIONS.get_partition_keys(current_time=current_time)
+
+    assert 1 <= len(run_keys) <= 24
+    assert run_keys[-1] == current_time.strftime("%Y%m%dT%H00")

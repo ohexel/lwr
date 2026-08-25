@@ -277,24 +277,43 @@ uv run --env-file .env python -m src.static_snapshot restore \
 The restore operation verifies the selected file and refuses to overwrite an
 existing conflicting file.
 
-## Forecast raw-file retention
+## Forecast retention
 
-Inspect what the retention utility would remove:
+Forecast model runs are retained for a maximum of 24 hours. The same rolling
+UTC cutoff applies to downloaded GRIB files, their metadata sidecars, and the
+seven forecast-only PostgreSQL tables. HOSTRADA observations, historical
+references, geography, population, and other static inputs are never included.
+
+Each successful forecast materialization automatically removes expired forecast
+rows and files. To inspect the current candidates without deleting anything,
+run:
 
 ```bash
 uv run --env-file .env python -m src.retention.weather_raw
 ```
 
-The default retention period is seven days. Actual deletion requires an
-explicit `--apply`:
+To apply cleanup immediately, use an explicit `--apply`:
 
 ```bash
 uv run --env-file .env python -m src.retention.weather_raw --apply
 ```
 
-Set `WEATHER_RAW_RETENTION_DAYS` or `WEATHER_RAW_PINNED_PARTITIONS` in `.env`
-when a different policy is needed. Deleted GRIB files cannot be reprocessed
-once the same upstream partition has disappeared.
+The default window is 24 hours. Set `FORECAST_RETENTION_HOURS` in `.env` to a
+whole number from 1 through 24 if a shorter window is appropriate. Values over
+24 are rejected, and expired partitions cannot be pinned. The previous
+`WEATHER_RAW_RETENTION_DAYS` and `WEATHER_RAW_PINNED_PARTITIONS` settings no
+longer apply.
+
+Dagster computes its visible forecast partition window when the code location
+loads. Restart Dagster, or reload its code location in the interface, to drop
+older partitions from the display. The sensor and database/file cleanup always
+calculate their current cutoff when they run, even if the interface has not
+been reloaded.
+
+PostgreSQL makes deleted space available for reuse through normal vacuuming;
+an immediate reduction in the database file size is not guaranteed. Deleted
+GRIB files and database forecast rows cannot be recovered unless the same
+upstream forecast is still available and reprocessed.
 
 ## Database lifecycle
 
