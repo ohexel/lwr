@@ -131,6 +131,8 @@ Use persistent project-local Dagster state:
 export DAGSTER_HOME="$PWD/.dagster_home"
 ```
 
+Download the compressed HOSTRADA reference file: [link](https://www.ohexel.com/files/hostrada-reference-1995-2025.pgcustom)
+
 Initialize the complete operational pipeline:
 
 ```bash
