@@ -91,14 +91,22 @@ def test_population_download_survives_catalogue_and_direct_source_failures(
     assert metadata["download"]["sha256"] == BUNDLED_FALLBACK_SHA256
 
 
-def test_canonical_bootstrap_never_replays_numbered_development_migrations():
+def test_canonical_bootstrap_uses_only_named_schema_entry_points():
     bootstrap_script = (
         PROJECT_ROOT / "scripts" / "bootstrap_database.sh"
     ).read_text(encoding="utf-8")
 
     assert "sql/bootstrap_schema.sql" in bootstrap_script
-    assert "sql/[0-9][0-9][0-9]_*.sql" not in bootstrap_script
+    assert "sql/hostrada_reference_snapshot_validation.sql" in bootstrap_script
     assert "TRUNCATE TABLE" not in bootstrap_script
+
+    sql_files = {
+        path.name for path in (PROJECT_ROOT / "sql").glob("*.sql")
+    }
+    assert sql_files == {
+        "bootstrap_schema.sql",
+        "hostrada_reference_snapshot_validation.sql",
+    }
 
 
 def test_canonical_schema_excludes_unneeded_postgis_extensions():
@@ -111,6 +119,21 @@ def test_canonical_schema_excludes_unneeded_postgis_extensions():
     assert "CREATE EXTENSION IF NOT EXISTS postgis_tiger_geocoder" not in schema
     assert "CREATE EXTENSION IF NOT EXISTS postgis_topology" not in schema
     assert "analytical.check_hostrada_reference_snapshot(" in schema
+
+
+def test_database_reset_is_explicitly_confirmed_and_separate_from_bootstrap():
+    reset_script = (
+        PROJECT_ROOT / "scripts" / "reset_database.sh"
+    ).read_text(encoding="utf-8")
+
+    assert 'read -r -p "Type RESET to continue: " confirmation' in reset_script
+    assert '[[ "${confirmation}" != "RESET" ]]' in reset_script
+    assert "down --volumes" in reset_script
+
+    bootstrap_script = (
+        PROJECT_ROOT / "scripts" / "bootstrap_database.sh"
+    ).read_text(encoding="utf-8")
+    assert "down --volumes" not in bootstrap_script
 
 
 def test_manual_forecast_rejects_a_lead_time_outside_the_project_contract():

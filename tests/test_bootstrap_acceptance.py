@@ -41,3 +41,55 @@ def test_current_serving_view_preserves_the_22_column_contract():
         ).fetchone()
 
     assert row == (22,)
+
+
+def test_current_forecast_serves_all_plrs_with_references_and_population_status():
+    with database_connection(
+        application_name="capstone_operational_forecast_acceptance"
+    ) as connection:
+        row = connection.execute(
+            """
+            SELECT
+                COUNT(*),
+                COUNT(DISTINCT plr_id),
+                COUNT(*) FILTER (
+                    WHERE population_status = 'available'
+                ),
+                COUNT(*) FILTER (
+                    WHERE population_status = 'rejected_source_record'
+                ),
+                COUNT(*) FILTER (
+                    WHERE temperature_c IS NULL
+                       OR apparent_temperature_shade_c IS NULL
+                ),
+                COUNT(*) FILTER (
+                    WHERE population_status = 'available'
+                      AND (
+                          population_total IS NULL
+                          OR population_65plus IS NULL
+                      )
+                ),
+                COUNT(*) FILTER (
+                    WHERE population_status = 'rejected_source_record'
+                      AND (
+                          population_total IS NOT NULL
+                          OR population_65plus IS NOT NULL
+                      )
+                ),
+                COUNT(*) FILTER (
+                    WHERE (
+                        EXTRACT(MONTH FROM valid_time_berlin),
+                        EXTRACT(DAY FROM valid_time_berlin)
+                    ) <> (2, 29)
+                      AND (
+                          plr_temperature_median_c IS NULL
+                          OR plr_apparent_temperature_median_c IS NULL
+                          OR berlin_temperature_median_c IS NULL
+                          OR berlin_apparent_temperature_median_c IS NULL
+                      )
+                )
+            FROM analytical.current_plr_weather_context
+            """
+        ).fetchone()
+
+    assert row == (542, 542, 540, 2, 0, 0, 0, 0), row

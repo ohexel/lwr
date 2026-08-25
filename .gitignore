@@ -1,6 +1,7 @@
 # Project files
 data/
 *.pgcustom
+static-inputs.tar.xz
 snapshots/*.tar.xz
 snapshots/*.partial
 diagnostics/

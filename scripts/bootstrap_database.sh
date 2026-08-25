@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 
-# Apply the current canonical schema exactly once. Historical development
-# migrations contain deliberate TRUNCATE statements and are never replayed.
+# Apply the canonical schema to an empty database, or verify an existing one.
 set -euo pipefail
 
 project_root="$(cd "$(dirname "$0")/.." && pwd)"
@@ -109,7 +108,7 @@ case "$schema_count" in
 
         if [[ "$schema_is_compatible" != 1 ]]; then
             echo "Existing project schemas do not match the canonical contract." >&2
-            echo "Refusing to replay migrations or modify existing data." >&2
+            echo "Refusing to modify existing data." >&2
             exit 1
         fi
 
@@ -138,7 +137,7 @@ snapshot_gate_installed="$(
 if [[ "$snapshot_gate_installed" != 1 ]]; then
     echo "Installing the additive HOSTRADA snapshot validation function."
     psql_command --single-transaction \
-        < sql/037_hostrada_reference_snapshot_validation.sql
+        < sql/hostrada_reference_snapshot_validation.sql
 fi
 
 psql_command --command "
