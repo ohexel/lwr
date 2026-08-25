@@ -1,4 +1,4 @@
-# Berlin neighborhood temperature context
+# 24h temperature forecast for Berlin neighborhoods
 
 A reproducible geospatial data pipeline that combines current DWD temperature
 forecasts, 31 years of historical temperature, and official population data for
