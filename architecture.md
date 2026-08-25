@@ -49,6 +49,7 @@ is not a streaming platform, medical decision system, or dashboard product.
 | Source | Grain | Refresh behavior | Operational role |
 | --- | --- | --- | --- |
 | Berlin LOR planning areas | 542 polygons, geography dated 2023-01-01 | Slowly changing | Stable PLR identifiers and geometry. |
+| Berlin PLR name directory | 542 planning-area identifiers and names | Slowly changing | Analyst-facing neighborhood labels only. |
 | AfS population register | PLR, reference date 2025-12-31 | Slowly changing | Total residents and residents aged 65+. |
 | DWD ICON grid 0047 | 542,040 cells and 272,089 vertices | Static model grid | Forecast-cell geometry and spatial bridge. |
 | DWD ICON-D2-RUC | Forecast run, lead time, grid cell, indicator | Rolling forecast publication | Temperature, humidity, and wind fields. |
@@ -64,7 +65,7 @@ tables are required only when deliberately reconstructing that reference.
 | --- | --- | --- |
 | `raw` | Source-faithful records and ingestion provenance. | `lor_plr`, `afs_population`, `icon_grid_source`, `icon_d2_ruc_field` |
 | `normalized` | Validated geometry, accepted/rejected population, spatial weights, and normalized forecast fields. | `plr`, `plr_population_65plus`, `plr_population_rejected`, `icon_cell`, `icon_plr_area_bridge`, `icon_weather_mask`, `icon_d2_ruc_weather` |
-| `analytical` | PLR-level temperature facts, historical reference tables, and consumer-facing views. | `plr_weather_population`, `hostrada_plr_hourly_reference`, `hostrada_berlin_hourly_reference`, `current_plr_weather_context` |
+| `analytical` | PLR-level temperature facts, historical reference tables, analyst-facing labels, and consumer-facing views. | `plr_weather_population`, `plr_display_name`, `hostrada_plr_hourly_reference`, `hostrada_berlin_hourly_reference`, `current_plr_weather_context` |
 
 Raw forecast GRIB files also remain on the filesystem. Their stable directory
 layout mirrors `(run_time_utc, lead_time, indicator)` and permits reprocessing
@@ -93,6 +94,7 @@ starting expensive static processing. It then:
 5. Restores the two historical-reference tables in one PostgreSQL transaction.
 6. Validates the imported reference independently of historical source
    manifests or 1995–2025 hourly observations.
+7. Installs 542 verified PLR display names for the final analyst-facing views.
 
 On the development laptop, the first clean-room installation took
 approximately ten minutes. Its largest one-time operation was processing the
@@ -121,9 +123,12 @@ be enabled explicitly. Manual execution performs the same source-completeness
 preflight while still allowing complete retained raw partitions to be
 reprocessed without contacting DWD.
 
-The forecast pipeline retains full GRIB source files, loads only the
-Berlin-scoped forecast-mask cells into PostgreSQL, computes shade apparent
-temperature, and area-weights both temperature measures to PLRs.
+The forecast pipeline retains and validates full GRIB source fields, selects
+the 465 Berlin forecast-mask cell indices from each decoded array in Python,
+and copies only those values into PostgreSQL. It then computes shade apparent
+temperature and area-weights both temperature measures to PLRs. Full-grid
+point counts and missing-value accounting remain recorded in the source
+manifest even though nationwide values do not cross the database boundary.
 
 ## Spatial and population contracts
 
@@ -167,11 +172,11 @@ it never incorrectly equates the ICON and HOSTRADA grid identifiers.
 
 `analytical.plr_weather_context` exposes every forecast partition.
 `analytical.current_plr_weather_context` exposes the current partition.
-Both views have the same 22 columns:
+Both views have the same 23 columns:
 
 | Category | Columns |
 | --- | --- |
-| Geography | `plr_id` |
+| Geography | `plr_id`, `plr_name` |
 | Forecast time | `run_time_utc`, `lead_time`, `valid_time_utc`, `valid_time_berlin` |
 | Forecast observations | `temperature_c`, `apparent_temperature_shade_c` |
 | PLR air-temperature reference | `plr_temperature_median_c`, `plr_temperature_p90_c`, `plr_temperature_max_c` |
@@ -179,6 +184,10 @@ Both views have the same 22 columns:
 | Berlin air-temperature reference | `berlin_temperature_median_c`, `berlin_temperature_p90_c`, `berlin_temperature_max_c` |
 | Berlin apparent-temperature reference | `berlin_apparent_temperature_median_c`, `berlin_apparent_temperature_p90_c`, `berlin_apparent_temperature_max_c` |
 | Population | `population_total`, `population_65plus`, `population_status` |
+
+Display names are presentation-only and may be duplicated: PLR identifiers
+remain the sole engineering and spatial join key. Missing names cannot remove
+forecast rows because the final label lookup uses a left join.
 
 Historical joins are left joins. Forecasts occurring on Berlin-local February
 29 remain visible with null historical comparisons. Geography version,

@@ -187,8 +187,18 @@ def _prepare_field(
     )
 
 
-def _stage_rows(values: np.ndarray):
-    for cell_index, source_value in enumerate(values):
+def _masked_stage_rows(
+    values: np.ndarray,
+    cell_indices: tuple[int, ...],
+):
+    """Yield only verified Berlin-mask values from a validated full grid."""
+    for cell_index in cell_indices:
+        if not 0 <= cell_index < len(values):
+            raise ValueError(
+                f'Weather-mask cell index {cell_index:,} is outside the '
+                f'decoded field of {len(values):,} values'
+            )
+        source_value = values[cell_index]
         yield (
             int(cell_index),
             None if np.isnan(source_value) else float(source_value),
@@ -200,8 +210,8 @@ def load_icon_d2_ruc_raw_partition(
     *,
     paths: ProjectPaths | None = None,
 ) -> WeatherRawLoadResult:
-    # One indicator at a time is decoded into a PostgreSQL TEMP table.
-    # SQL then persists only cells belonging to the current Berlin mask.
+    # Validate each complete source field, but cross the Python/PostgreSQL
+    # boundary only with the small, already materialized Berlin mask.
     started = perf_counter()
     project_paths = paths if paths is not None else ProjectPaths()
 
@@ -266,13 +276,16 @@ def load_icon_d2_ruc_raw_partition(
                 schema='pg_temp',
                 table='icon_d2_ruc_field_stage',
                 columns=('cell_index', 'source_value'),
-                rows=_stage_rows(field.values),
+                rows=_masked_stage_rows(
+                    field.values,
+                    mask.cell_indices,
+                ),
             )
 
-            if stage_result.row_count != ICON_D2_GRID_CONTRACT.field_point_count:
+            if stage_result.row_count != mask.mask_cell_count:
                 raise RuntimeError(
-                    'Temporary full-grid COPY row count mismatch: '
-                    f'expected {ICON_D2_GRID_CONTRACT.field_point_count:,}, '
+                    'Temporary Berlin-mask COPY row count mismatch: '
+                    f'expected {mask.mask_cell_count:,}, '
                     f'loaded {stage_result.row_count:,}'
                 )
 

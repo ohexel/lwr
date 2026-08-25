@@ -4165,6 +4165,16 @@ CREATE TABLE analytical.hostrada_plr_hourly_reference (
 );
 
 
+-- Analyst-facing labels are deliberately separate from engineering PLR facts.
+CREATE TABLE analytical.plr_display_name (
+    plr_id text NOT NULL,
+    geography_version text NOT NULL,
+    plr_name text NOT NULL,
+    CONSTRAINT plr_display_name_plr_id_check CHECK ((plr_id ~ '^[0-9]{8}$'::text)),
+    CONSTRAINT plr_display_name_plr_name_check CHECK ((btrim(plr_name) <> ''::text))
+);
+
+
 --
 -- Name: plr_weather_context; Type: VIEW; Schema: analytical; Owner: -
 --
@@ -4191,6 +4201,7 @@ CREATE VIEW analytical.plr_weather_context AS
            FROM analytical.plr_weather_population weather_row
         )
  SELECT forecast.plr_id,
+    display_name.plr_name,
     forecast.run_time_utc,
     forecast.lead_time,
     forecast.valid_time_utc,
@@ -4212,7 +4223,8 @@ CREATE VIEW analytical.plr_weather_context AS
     forecast.population_total,
     forecast.population_65plus,
     forecast.population_status
-   FROM ((local_forecasts forecast
+   FROM (((local_forecasts forecast
+     LEFT JOIN analytical.plr_display_name display_name ON (((display_name.plr_id = forecast.plr_id) AND (display_name.geography_version = forecast.geography_version))))
      LEFT JOIN analytical.hostrada_plr_hourly_reference plr_reference ON (((plr_reference.calendar_month = (EXTRACT(month FROM forecast.valid_time_berlin))::smallint) AND (plr_reference.geography_version = forecast.geography_version) AND (plr_reference.plr_id = forecast.plr_id) AND (plr_reference.calendar_day = (EXTRACT(day FROM forecast.valid_time_berlin))::smallint) AND (plr_reference.local_hour = (EXTRACT(hour FROM forecast.valid_time_berlin))::smallint))))
      LEFT JOIN analytical.hostrada_berlin_hourly_reference berlin_reference ON (((berlin_reference.calendar_month = (EXTRACT(month FROM forecast.valid_time_berlin))::smallint) AND (berlin_reference.geography_version = forecast.geography_version) AND (berlin_reference.calendar_day = (EXTRACT(day FROM forecast.valid_time_berlin))::smallint) AND (berlin_reference.local_hour = (EXTRACT(hour FROM forecast.valid_time_berlin))::smallint))));
 
@@ -4223,6 +4235,7 @@ CREATE VIEW analytical.plr_weather_context AS
 
 CREATE VIEW analytical.current_plr_weather_context AS
  SELECT context_row.plr_id,
+    context_row.plr_name,
     context_row.run_time_utc,
     context_row.lead_time,
     context_row.valid_time_utc,
@@ -4796,6 +4809,10 @@ ALTER TABLE ONLY analytical.hostrada_plr_hourly_reference
     ADD CONSTRAINT hostrada_plr_hourly_reference_pkey PRIMARY KEY (calendar_month, geography_version, plr_id, calendar_day, local_hour);
 
 
+ALTER TABLE ONLY analytical.plr_display_name
+    ADD CONSTRAINT plr_display_name_pkey PRIMARY KEY (plr_id, geography_version);
+
+
 --
 -- Name: plr_weather plr_weather_pkey; Type: CONSTRAINT; Schema: analytical; Owner: -
 --
@@ -5144,6 +5161,10 @@ ALTER TABLE ONLY analytical.hostrada_plr_hourly
 
 ALTER TABLE ONLY analytical.hostrada_plr_hourly_reference
     ADD CONSTRAINT hostrada_plr_hourly_reference_plr_id_geography_version_fkey FOREIGN KEY (plr_id, geography_version) REFERENCES normalized.plr(plr_id, geography_version);
+
+
+ALTER TABLE ONLY analytical.plr_display_name
+    ADD CONSTRAINT plr_display_name_plr_fkey FOREIGN KEY (plr_id, geography_version) REFERENCES normalized.plr(plr_id, geography_version);
 
 
 --

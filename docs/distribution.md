@@ -1,7 +1,8 @@
 # External artifacts and release preparation
 
 The operational repository contains source code, the canonical database
-schema, reproducible Python dependencies, a small population CSV fallback, and
+schema, reproducible Python dependencies, small population CSV and PLR-name
+workbook fallbacks, and
 machine-readable artifact manifests. It intentionally excludes large
 downloadable archives.
 
@@ -87,6 +88,9 @@ The archive contains original static source files, not prebuilt database
 tables. A snapshot-based bootstrap still processes the ICON grid and constructs
 its spatial bridge; the observed one-time clean-room installation took about
 ten minutes.
+
+The 64 KB PLR-name workbook is checked into the repository separately. It does
+not alter the existing static archive or require regenerating that archive.
 
 ## Publishing checklist
 

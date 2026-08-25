@@ -27,6 +27,25 @@ The current 542-PLR geography must not be silently combined with pre-2021 LOR
 boundaries. Operational installation checks the exact geography version and
 the sorted PLR identifier SHA-256 recorded in the HOSTRADA reference manifest.
 
+### Official PLR display names
+
+- Publisher and required attribution: Amt für Statistik Berlin-Brandenburg.
+- Official directory: [Lebensweltlich orientierte Räume: Namensverzeichnis – 542 PLR](https://www.berlin.de/sen/stadt/stadtdaten/stadtwissen/sozialraumorientierte-planungsgrundlagen/lebensweltlich-orientierte-raeume/).
+- Workbook: `lor_2021-01-01_k3_uebersicht_id_namen.xlsx`.
+- Worksheet and columns: `LOR_2023_PLR`, `PLR_ID`, and `PLR_Name`.
+- Size: 64,143 bytes.
+- SHA-256: `86088afaa3ad8f163849256a037a9d304ff9930ca62ee475d7de37ed5e01dc08`.
+- Published page license: Creative Commons Attribution 3.0.
+- Verified repository fallback:
+  `resources/static/plr_names/lor_2021-01-01_k3_uebersicht_id_namen.xlsx`.
+
+The advertised direct link serves a genuine XLSX workbook. Unlike the AfS
+population catalogue link, it does not require an alternative download host.
+The loader validates all 542 identifiers against the HOSTRADA geography
+fingerprint and preserves leading zeroes, German characters, and duplicate
+neighborhood names. Names are joined only into the final analytical serving
+views; they are never used as engineering, population, or spatial join keys.
+
 ## Berlin population register
 
 - Publisher: Amt für Statistik Berlin-Brandenburg.

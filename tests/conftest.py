@@ -58,10 +58,12 @@ CONTRACT_TEST_FILES = {
     "test_hostrada_snapshot.py",
     "test_icon_grid_contract.py",
     "test_population_sql_quality_gate.py",
+    "test_plr_display_names.py",
     "test_run_forecast.py",
     "test_spatial_bridge_sql.py",
     "test_static_snapshot.py",
     "test_weather_contract_sql.py",
+    "test_weather_early_filtering.py",
     "test_weather_source_contract.py",
 }
 

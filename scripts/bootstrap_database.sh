@@ -140,6 +140,32 @@ if [[ "$snapshot_gate_installed" != 1 ]]; then
         < sql/hostrada_reference_snapshot_validation.sql
 fi
 
+display_names_installed="$(
+    psql_command \
+        --tuples-only \
+        --no-align \
+        --command "
+            SELECT (
+                to_regclass('analytical.plr_display_name') IS NOT NULL
+                AND (
+                    SELECT COUNT(*)
+                    FROM information_schema.columns
+                    WHERE table_schema = 'analytical'
+                      AND table_name IN (
+                          'plr_weather_context',
+                          'current_plr_weather_context'
+                      )
+                      AND column_name = 'plr_name'
+                ) = 2
+            )::INTEGER
+        "
+)"
+
+if [[ "$display_names_installed" != 1 ]]; then
+    echo "Installing analyst-facing PLR display names without changing existing data."
+    psql_command --single-transaction < sql/plr_display_names.sql
+fi
+
 psql_command --command "
     SELECT
         current_database() AS database_name,

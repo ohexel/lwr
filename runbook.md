@@ -85,18 +85,24 @@ The successful JSON summary must report:
   "hostrada_snapshot": {
     "status": "imported"
   },
+  "plr_display_names": {
+    "status": "installed",
+    "plr_count": 542
+  },
   "weather_sensor_default_status": "STOPPED"
 }
 ```
 
 An already initialized installation reports
-`"hostrada_snapshot": {"status": "already_installed"}` instead.
+`"hostrada_snapshot": {"status": "already_installed"}` instead. The PLR-name
+lookup likewise reports `"already_installed"` on subsequent runs.
 
 ### Expected static and reference state
 
 | Contract | Expected |
 | --- | ---: |
 | Berlin PLRs | 542 |
+| Analyst-facing PLR display names | 542 |
 | Raw population rows | 542 |
 | Accepted population rows | 540 |
 | Rejected population rows | 2 |
@@ -220,6 +226,7 @@ docker compose --env-file .env -f docker/postgres.yml \
   exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
     SELECT
       plr_id,
+      plr_name,
       valid_time_utc,
       valid_time_berlin,
       temperature_c,

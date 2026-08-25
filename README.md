@@ -4,11 +4,11 @@ A reproducible geospatial data pipeline that combines current German Weather
 Service temperature forecasts, 31 years of historical temperature, and official
 population data for Berlin's 542 planning areas.
 
-The final PostgreSQL view gives analysts neighborhood-level temperature and
-shade apparent temperature, comparable neighborhood and citywide historical
-reference values, and the number of residents aged 65 or older. It does **not**
-label heat risk, infer individual exposure, or silently replace rejected
-population records with zero.
+The final PostgreSQL view gives analysts named neighborhoods, neighborhood-level
+temperature and shade apparent temperature, comparable neighborhood and
+citywide historical reference values, and the number of residents aged 65 or
+older. It does **not** label heat risk, infer individual exposure, or silently
+replace rejected population records with zero.
 
 The engineering contribution is a resource-conscious path from heterogeneous
 GeoJSON/WFS, CSV, GRIB2, and NetCDF sources to one stable analytical contract.
@@ -27,6 +27,52 @@ historical download.
 | Different forecast, historical, and administrative geometries | Versioned PostGIS intersection bridges with area weighting | Comparable neighborhood values without pretending the source grids match |
 | Large nationwide and multi-decade inputs | Filter early, join on reusable bridges, aggregate monthly, and delete validated monthly source files | Bounded storage and restartable processing |
 | Expensive historical reconstruction | Export only validated PLR and Berlin calendar-hour statistics | A clean installation in about ten minutes rather than a full HOSTRADA rebuild |
+
+## Run a forecast and inspect the result
+
+After completing the [one-time installation and bootstrap](#install-and-initialize),
+run these two commands from the project root. On GNU/Linux, the first processes
+a forecast from approximately two hours ago:
+
+```bash
+uv run --env-file .env python -m src.run_forecast \
+  --run-time "$(date -u -d '2 hours ago' +%Y%m%dT%H00)"
+```
+
+The second queries the final analytical view using the PostgreSQL credentials
+already configured inside the database container:
+
+```bash
+docker compose --env-file .env -f docker/postgres.yml \
+  exec -T postgres \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+    SELECT
+      plr_id,
+      plr_name,
+      valid_time_berlin,
+      ROUND(temperature_c::numeric, 1) AS temperature_c,
+      ROUND(apparent_temperature_shade_c::numeric, 1)
+        AS apparent_temperature_c,
+      ROUND(plr_temperature_median_c::numeric, 1)
+        AS historical_median_c,
+      population_65plus
+    FROM analytical.current_plr_weather_context
+    ORDER BY plr_id
+    LIMIT 10;
+  "'
+```
+
+Example result:
+
+| PLR ID | Neighborhood | Berlin-local time | Temperature °C | Apparent °C | Historical median °C | Residents 65+ |
+| --- | --- | --- | ---: | ---: | ---: | ---: |
+| `01100101` | Stülerstraße | 2026-08-24 18:00 | 20.8 | 19.5 | 22.6 | 700 |
+| `01100102` | Großer Tiergarten | 2026-08-24 18:00 | 20.8 | 19.6 | 22.7 | 291 |
+| `01100103` | Lützowstraße | 2026-08-24 18:00 | 20.8 | 19.5 | 22.7 | 1,106 |
+
+Forecast run labels use UTC; very recent runs may not yet be published and
+older runs may have left DWD's rolling availability window. A complete
+partition contains all 542 planning areas. The Dagster UI is not required.
 
 ## Start here
 
@@ -115,48 +161,8 @@ historical reference.
 
 A successful bootstrap reports `"status": "ready"`. It does not download the
 1995–2025 historical HOSTRADA archive.
-
-## Process and inspect a forecast
-
-Forecast run labels are **UTC**, not Berlin-local time. Recent runs may not yet
-be published and older runs may have left DWD's rolling availability window.
-
-On GNU/Linux, this selects a run from approximately two hours ago:
-
-```bash
-uv run --env-file .env python -m src.run_forecast \
-  --run-time "$(date -u -d '2 hours ago' +%Y%m%dT%H00)"
-```
-
-The default lead time is `PT000H00M`; supported alternatives are displayed by:
-
-```bash
-uv run --env-file .env python -m src.run_forecast --help
-```
-
-Query the final serving view using the default local database credentials:
-
-```bash
-docker compose --env-file .env -f docker/postgres.yml \
-  exec -T postgres psql -U capstone -d capstone -c "
-    SELECT
-      plr_id,
-      valid_time_utc,
-      temperature_c,
-      apparent_temperature_shade_c,
-      plr_temperature_median_c,
-      berlin_temperature_median_c,
-      population_65plus,
-      population_status
-    FROM analytical.current_plr_weather_context
-    ORDER BY valid_time_utc, plr_id
-    LIMIT 10;
-  "
-```
-
-If you changed the database name or user in `.env`, substitute those values in
-the command above. A complete partition contains one row for each of 542 PLRs;
-the two rejected population records remain visible with their explicit status.
+The official 542-PLR name directory is acquired automatically; a verified,
+64 KB workbook included in the repository supplies its offline fallback.
 
 ## Orchestration and tests
 

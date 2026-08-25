@@ -27,7 +27,7 @@ def test_imported_reference_matches_installed_geography_and_calendar():
     assert quality.expected_observation_count == 271_559
 
 
-def test_current_serving_view_preserves_the_22_column_contract():
+def test_current_serving_view_preserves_the_23_column_contract():
     with database_connection(
         application_name="capstone_operational_serving_acceptance"
     ) as connection:
@@ -40,7 +40,7 @@ def test_current_serving_view_preserves_the_22_column_contract():
             """
         ).fetchone()
 
-    assert row == (22,)
+    assert row == (23,)
 
 
 def test_current_forecast_serves_all_plrs_with_references_and_population_status():
@@ -52,6 +52,7 @@ def test_current_forecast_serves_all_plrs_with_references_and_population_status(
             SELECT
                 COUNT(*),
                 COUNT(DISTINCT plr_id),
+                COUNT(*) FILTER (WHERE plr_name IS NULL OR btrim(plr_name) = ''),
                 COUNT(*) FILTER (
                     WHERE population_status = 'available'
                 ),
@@ -92,4 +93,4 @@ def test_current_forecast_serves_all_plrs_with_references_and_population_status(
             """
         ).fetchone()
 
-    assert row == (542, 542, 540, 2, 0, 0, 0, 0), row
+    assert row == (542, 542, 0, 540, 2, 0, 0, 0, 0), row

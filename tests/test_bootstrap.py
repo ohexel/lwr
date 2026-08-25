@@ -98,6 +98,7 @@ def test_canonical_bootstrap_uses_only_named_schema_entry_points():
 
     assert "sql/bootstrap_schema.sql" in bootstrap_script
     assert "sql/hostrada_reference_snapshot_validation.sql" in bootstrap_script
+    assert "sql/plr_display_names.sql" in bootstrap_script
     assert "TRUNCATE TABLE" not in bootstrap_script
 
     sql_files = {
@@ -106,6 +107,7 @@ def test_canonical_bootstrap_uses_only_named_schema_entry_points():
     assert sql_files == {
         "bootstrap_schema.sql",
         "hostrada_reference_snapshot_validation.sql",
+        "plr_display_names.sql",
     }
 
 
@@ -192,6 +194,13 @@ def test_operational_bootstrap_verifies_reference_before_expensive_work(
     )
     monkeypatch.setattr(
         operational_bootstrap,
+        "install_plr_display_names",
+        lambda observed_manifest, **kwargs: (
+            events.append("display_names") or {"status": "installed", "plr_count": 542}
+        ),
+    )
+    monkeypatch.setattr(
+        operational_bootstrap,
         "ensure_dagster_home",
         lambda project_root: tmp_path / ".dagster_home",
     )
@@ -201,6 +210,7 @@ def test_operational_bootstrap_verifies_reference_before_expensive_work(
         project_root=tmp_path,
     )
 
-    assert events == ["verify", "database", "static", "restore"]
+    assert events == ["verify", "database", "static", "restore", "display_names"]
     assert result["status"] == "ready"
+    assert result["plr_display_names"]["plr_count"] == 542
     assert result["weather_sensor_default_status"] == "STOPPED"

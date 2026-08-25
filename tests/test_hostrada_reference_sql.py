@@ -4,6 +4,7 @@ from src.hostrada_contract import HOSTRADA_GRID_CONTRACT
 
 SERVING_COLUMNS = [
     "plr_id",
+    "plr_name",
     "run_time_utc",
     "lead_time",
     "valid_time_utc",

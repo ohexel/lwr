@@ -21,6 +21,7 @@ class WeatherMaskState:
     source_grid_id: str
     mask_buffer_m: int
     mask_cell_count: int
+    cell_indices: tuple[int, ...]
 
 
 def weather_mask_buffer_m() -> int:
@@ -55,28 +56,25 @@ def current_weather_mask(
         connection
     )
 
-    row = connection.execute(
+    rows = connection.execute(
         """
         SELECT
-            COUNT(*)::BIGINT AS mask_cell_count
+            cell_index
         FROM normalized.icon_weather_mask
         WHERE geography_version = %s
           AND source_grid_id = %s
           AND mask_buffer_m = %s
+        ORDER BY cell_index
         """,
         (
             geography_version,
             source_grid_id,
             buffer_m,
         ),
-    ).fetchone()
+    ).fetchall()
 
-    if row is None:
-        raise RuntimeError(
-            "Weather-mask count query returned no row"
-        )
-
-    mask_cell_count = int(row[0])
+    cell_indices = tuple(int(row[0]) for row in rows)
+    mask_cell_count = len(cell_indices)
 
     if mask_cell_count == 0:
         raise RuntimeError(
@@ -86,9 +84,23 @@ def current_weather_mask(
             f"buffer_m={buffer_m}"
         )
 
+    if len(set(cell_indices)) != mask_cell_count:
+        raise RuntimeError("Materialized ICON weather mask contains duplicates")
+
+    invalid_indices = [
+        cell_index
+        for cell_index in cell_indices
+        if not 0 <= cell_index < ICON_D2_GRID_CONTRACT.field_point_count
+    ]
+    if invalid_indices:
+        raise RuntimeError(
+            "Materialized ICON weather mask contains out-of-range cell indices"
+        )
+
     return WeatherMaskState(
         geography_version=geography_version,
         source_grid_id=source_grid_id,
         mask_buffer_m=buffer_m,
         mask_cell_count=mask_cell_count,
+        cell_indices=cell_indices,
     )

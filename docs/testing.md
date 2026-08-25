@@ -81,7 +81,9 @@ that optional environment.
 | Forecast identity and source publication | `test_forecast_key.py`, `test_run_forecast.py`, `test_weather_source_contract.py` | Forecast runs are UTC, have supported lead times, and fail clearly when unpublished or expired. |
 | Geography and forecast-grid compatibility | `test_icon_grid_contract.py`, `test_spatial_bridge_sql.py` | The declared grid, PLR geometry, and area-weighted bridge remain compatible. |
 | Population quality | `test_population_sql_quality_gate.py`, `test_bootstrap.py` | Malformed source records are rejected explicitly; the checked-in CSV fallback remains usable. |
+| Analyst-facing PLR names | `test_plr_display_names.py`, `test_bootstrap_acceptance.py` | All 542 official labels match the PLR geography; leading zeroes, German characters, duplicate names, and offline fallback remain correct. |
 | Temperature calculation | `test_apparent_temperature_sql.py`, `test_weather_contract_sql.py` | The shade apparent-temperature formula and forecast data grain remain stable. |
+| Early forecast filtering | `test_weather_early_filtering.py`, `test_weather_mask_state.py` | Full fields remain validated while only ordered, in-range Berlin-mask cells cross into PostgreSQL. |
 | HOSTRADA references | `test_hostrada_reference.py`, `test_hostrada_reference_sql.py`, `test_hostrada_snapshot.py` | Berlin-local calendar rules, sample counts, geography fingerprint, and the lean serving contract remain intact. |
 | Bootstrap and release artifacts | `test_bootstrap.py`, `test_bootstrap_snapshot_sql.py`, `test_static_snapshot.py`, `test_distribution_manifest.py` | Canonical initialization is non-destructive, restores are verified, and published manifests match runtime assumptions. |
 | End-to-end readiness | `test_bootstrap_acceptance.py` | A clean installation serves all 542 PLRs with valid references, 540 accepted populations, and two explicit rejections without historical backfill data. |

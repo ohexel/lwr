@@ -23,6 +23,7 @@ from src.hostrada_snapshot import (
     verify_archive,
 )
 from src.icon_grid_contract import ICON_D2_GRID_CONTRACT
+from src.plr_display_names import install_plr_display_names
 from src.static_snapshot import (
     STATIC_SOURCE_PATHS,
     read_static_manifest,
@@ -423,6 +424,11 @@ def bootstrap(
         manifest,
         project_root=project_root,
     )
+    display_name_result = install_plr_display_names(
+        manifest,
+        project_root=project_root,
+        offline=offline,
+    )
 
     return {
         "status": "ready",
@@ -430,6 +436,7 @@ def bootstrap(
         "dagster_home": str(ensure_dagster_home(project_root)),
         "static_state": static_state.as_dict(),
         "hostrada_snapshot": snapshot_result,
+        "plr_display_names": display_name_result,
         "serving_view": "analytical.current_plr_weather_context",
         "weather_sensor_default_status": "STOPPED",
     }
