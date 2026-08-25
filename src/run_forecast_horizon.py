@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
+import psycopg
 import requests
 
 from src.database.connection import database_connection
@@ -17,6 +18,7 @@ from src.dagster_pipeline.partitions import (
     FORECAST_HORIZON_POINT_COUNT,
     WEATHER_LEAD_TIMES,
 )
+from src.historical_temperature_trajectories import refresh_historical_trajectories
 from src.run_forecast import parse_forecast_request, run_forecast
 
 
@@ -106,6 +108,7 @@ def run_forecast_horizon(
     run_time_label: str,
     *,
     project_root: Path = PROJECT_ROOT,
+    historical_trajectories: bool = False,
 ) -> dict[str, object]:
     """Run missing lead hours in order and safely resume completed horizons."""
     first_forecast = parse_forecast_request(run_time_label, WEATHER_LEAD_TIMES[0])
@@ -138,7 +141,7 @@ def run_forecast_horizon(
     local_run_time = first_forecast.run_time.astimezone(BERLIN_TIMEZONE)
     quality = validate_forecast_horizon(local_run_time)
 
-    return {
+    result: dict[str, object] = {
         "status": "ready",
         "run_time_utc": first_forecast.run_time.isoformat(),
         "run_time_berlin": local_run_time.isoformat(),
@@ -151,6 +154,13 @@ def run_forecast_horizon(
         "summary_view": SUMMARY_VIEW,
         "quality": quality,
     }
+
+    if historical_trajectories:
+        result["historical_trajectories"] = refresh_historical_trajectories(
+            first_forecast.run_time
+        )
+
+    return result
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -170,6 +180,15 @@ def main(argv: list[str] | None = None) -> int:
             "for example 20260824T1600."
         ),
     )
+    parser.add_argument(
+        "--historical-trajectories",
+        action="store_true",
+        help=(
+            "Also extract one historical line per year from the original "
+            "1995-2025 HOSTRADA hourly observations. The compact reference "
+            "snapshot alone is insufficient."
+        ),
+    )
     arguments = parser.parse_args(argv)
     logging.basicConfig(
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -177,8 +196,11 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     try:
-        result = run_forecast_horizon(arguments.run_time)
-    except (ValueError, RuntimeError, requests.RequestException) as exc:
+        result = run_forecast_horizon(
+            arguments.run_time,
+            historical_trajectories=arguments.historical_trajectories,
+        )
+    except (ValueError, RuntimeError, requests.RequestException, psycopg.Error) as exc:
         parser.exit(status=1, message=f"error: {exc}\n")
 
     print(json.dumps(result, indent=2, sort_keys=True))

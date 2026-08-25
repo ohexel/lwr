@@ -110,9 +110,21 @@ docker compose --env-file .env -f docker/postgres.yml \
 The separate `analytical.current_plr_temperature_forecast_25h` view provides
 all 13,550 plotting points, including forecast temperatures, corresponding
 PLR-specific historical medians, and signed differences. Both views switch to
-a newer model run only after all 25 lead times are complete. This phase uses
-the existing historical-reference snapshot; individual yearly historical
-trajectories are a separate, deferred extension.
+a newer model run only after all 25 lead times are complete. These two views
+require only the existing historical-reference snapshot.
+
+If your database also contains the original HOSTRADA hourly observations,
+optionally extract a separate historical line for every year from 1995 to
+2025. This reuses the current complete forecast without contacting DWD:
+
+```bash
+uv run --env-file .env python -m src.historical_temperature_trajectories
+```
+
+The resulting `analytical.current_plr_temperature_history_25h` view contains
+420,050 plotting observations: 542 neighborhoods, 25 lead hours, and 31
+historical years. The compact reference archive alone cannot reconstruct these
+individual observations, and ordinary installations do not need this feature.
 
 ## Start here
 

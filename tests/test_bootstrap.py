@@ -100,6 +100,7 @@ def test_canonical_bootstrap_uses_only_named_schema_entry_points():
     assert "sql/hostrada_reference_snapshot_validation.sql" in bootstrap_script
     assert "sql/plr_display_names.sql" in bootstrap_script
     assert "sql/plr_temperature_forecast_25h.sql" in bootstrap_script
+    assert "sql/plr_temperature_history_25h.sql" in bootstrap_script
     assert "TRUNCATE TABLE" not in bootstrap_script
 
     sql_files = {
@@ -110,6 +111,7 @@ def test_canonical_bootstrap_uses_only_named_schema_entry_points():
         "hostrada_reference_snapshot_validation.sql",
         "plr_display_names.sql",
         "plr_temperature_forecast_25h.sql",
+        "plr_temperature_history_25h.sql",
     }
 
 

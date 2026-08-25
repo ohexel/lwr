@@ -203,6 +203,7 @@ changing the existing 23-column single-partition contract:
 | --- | --- | ---: |
 | `analytical.current_plr_temperature_forecast_25h` | One PLR and one forecast lead hour, 0–24. | 13,550 |
 | `analytical.current_plr_temperature_summary_25h` | One PLR across the complete forecast horizon. | 542 |
+| `analytical.current_plr_temperature_history_25h` | One PLR, forecast lead hour, and historical year, 1995–2025; optional. | 420,050 |
 
 Both views select the newest model run containing all 25 lead hours for all
 installed PLRs. A newer incomplete run never displaces a previous complete
@@ -217,8 +218,22 @@ median; absolute differences are never substituted.
 
 The detailed plotting view reads only the established forecast context and its
 already-installed reference medians. It does not read, rebuild, or retain the
-147-million-row HOSTRADA historical observation table. Separate per-year
-historical trajectory data remains deferred.
+147-million-row HOSTRADA historical observation table.
+
+Individual historical-year trajectories are a separate, explicitly opted-in
+extension. They require the original populated
+`analytical.hostrada_plr_hourly` table, rather than the compact reference
+snapshot. PostgreSQL resolves each forecast hour to the same Berlin-local
+calendar hour in historical years 1995–2025, then uses both leading columns of
+the source table's existing `(source_month_utc, valid_time_utc, plr_id)`
+primary key for 775 targeted timestamp lookups.
+
+The resulting `analytical.plr_temperature_history_25h` table retains only the
+current horizon's 420,050 historical points. Its plotting view adds the
+existing analyst-facing PLR name, corresponding forecast temperature, and
+historical median. Historical extraction is transactional, repeatable, and
+never changes the original hourly observations, compact reference tables,
+existing forecast view, or neighborhood summary.
 
 ## Failure boundaries and restart behavior
 

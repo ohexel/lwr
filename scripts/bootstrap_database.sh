@@ -187,6 +187,29 @@ if [[ "$forecast_horizon_installed" != 1 ]]; then
     psql_command --single-transaction < sql/plr_temperature_forecast_25h.sql
 fi
 
+historical_trajectories_installed="$(
+    psql_command \
+        --tuples-only \
+        --no-align \
+        --command "
+            SELECT (
+                to_regclass('analytical.plr_temperature_history_25h')
+                    IS NOT NULL
+                AND to_regclass(
+                    'analytical.current_plr_temperature_history_25h'
+                ) IS NOT NULL
+                AND to_regprocedure(
+                    'analytical.refresh_plr_temperature_history_25h(timestamptz)'
+                ) IS NOT NULL
+            )::INTEGER
+        "
+)"
+
+if [[ "$historical_trajectories_installed" != 1 ]]; then
+    echo "Installing optional historical-year temperature trajectory storage."
+    psql_command --single-transaction < sql/plr_temperature_history_25h.sql
+fi
+
 psql_command --command "
     SELECT
         current_database() AS database_name,

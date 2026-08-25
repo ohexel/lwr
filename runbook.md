@@ -182,6 +182,42 @@ summary_row_count:      542
 It requires the existing compact historical-reference snapshot but does not
 query or rebuild historical hourly HOSTRADA observations.
 
+### Optionally extract individual historical-year trajectories
+
+This extension requires the original populated
+`analytical.hostrada_plr_hourly` table. The ordinary reference snapshot stores
+only aggregate statistics and cannot recover individual historical years.
+
+After a complete 25-point forecast is available, extract just its matching
+Berlin-local calendar hours for historical years 1995–2025:
+
+```bash
+uv run --env-file .env python -m src.historical_temperature_trajectories
+```
+
+Alternatively, materialize a forecast and extract its historical lines in one
+explicitly opted-in command:
+
+```bash
+uv run --env-file .env python -m src.run_forecast_horizon \
+  --run-time "$(date -u -d '2 hours ago' +%Y%m%dT%H00)" \
+  --historical-trajectories
+```
+
+The expected result is:
+
+```text
+plr_count:                  542
+historical_year_count:       31
+lead_hour_count:             25
+historical_row_count:   420,050
+```
+
+The extraction makes 775 targeted lookups against the existing
+`(source_month_utc, valid_time_utc, plr_id)` primary key. A complete existing
+cache is reused, and a failed refresh preserves the previous cache. Only the
+current forecast's historical lines are retained.
+
 ## Dagster monitoring and automation
 
 Use the same `DAGSTER_HOME` in every shell:
@@ -308,6 +344,25 @@ docker compose --env-file .env -f docker/postgres.yml \
     FROM analytical.current_plr_temperature_summary_25h
     ORDER BY max_temperature_difference_c DESC
     LIMIT 10;
+  "
+```
+
+Inspect the historical-year plotting lines for one neighborhood:
+
+```bash
+docker compose --env-file .env -f docker/postgres.yml \
+  exec -T postgres psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+    SELECT
+      plr_name,
+      historical_year,
+      lead_hour,
+      valid_time_berlin,
+      ROUND(historical_temperature_c::numeric, 1) AS historical_c,
+      ROUND(forecast_temperature_c::numeric, 1) AS forecast_c
+    FROM analytical.current_plr_temperature_history_25h
+    WHERE plr_id = '01100101'
+    ORDER BY historical_year, lead_hour
+    LIMIT 30;
   "
 ```
 
