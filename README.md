@@ -1,32 +1,26 @@
 # Berlin neighborhood temperature context
 
-A reproducible geospatial data pipeline that combines current German Weather
-Service temperature forecasts, 31 years of historical temperature, and official
-population data for Berlin's 542 planning areas.
+A reproducible geospatial data pipeline that combines current DWD temperature
+forecasts, 31 years of historical temperature, and official population data for
+Berlin's 542 planning areas.
 
 The final PostgreSQL view gives analysts named neighborhoods, neighborhood-level
 temperature and shade apparent temperature, comparable neighborhood and
 citywide historical reference values, and the number of residents aged 65 or
-older. It does **not** label heat risk, infer individual exposure, or silently
-replace rejected population records with zero.
+older.
 
-The engineering contribution is a resource-conscious path from heterogeneous
-GeoJSON/WFS, CSV, GRIB2, and NetCDF sources to one stable analytical contract.
-It reconciles nationwide model grids with neighborhood polygons, UTC forecast
-partitions with Berlin-local historical calendar hours, and slowly changing
-population data with hourly temperature values. The order of operations is
-deliberate: filter nationwide forecasts to Berlin before loading them, build
-reusable area-weighted spatial bridges once, process large historical files one
-month at a time, and distribute the resulting reference statistics as a
-verified 232 MB snapshot instead of making every user repeat a roughly 220 GB
-historical download.
+- heterogeneous source formats and grains transformed into one traceable PLR-level serving grain
+- different forecast, historical, and administrative geometries are reconciled using versioned PostGIS intersection bridges with area weighting
+- condensing large nationwide and multi-decade inputs: filter early, join on bridges, aggregate monthly, and delete validated monthly source files
+- replicable and quick startup: clean installation in ten minutes thanks to validated checksum-verified artefacts (instead of several-hours full historical rebuild)
 
-| Challenge | Engineering solution | Result |
-| --- | --- | --- |
-| Heterogeneous source formats and grains | Source-specific acquisition and decoding, then explicit PostgreSQL contracts | One traceable PLR-level serving grain |
-| Different forecast, historical, and administrative geometries | Versioned PostGIS intersection bridges with area weighting | Comparable neighborhood values without pretending the source grids match |
-| Large nationwide and multi-decade inputs | Filter early, join on reusable bridges, aggregate monthly, and delete validated monthly source files | Bounded storage and restartable processing |
-| Expensive historical reconstruction | Export only validated PLR and Berlin calendar-hour statistics | A clean installation in about ten minutes rather than a full HOSTRADA rebuild |
+**The pipeline at a glance:**  
+- Partitioned batch pipeline (multi-dimensional: run_time × lead_time)
+- persistent source data in `raw`, 3NF tables in `normalized`, one fully denormalized OBT view served to analysts
+- Dagster software-defined assets with asset lineage, asset checks as data-quality gates, and a sensor-based trigger
+- PostGIS geospatial ETL:area-weighted spatial joins, reusable intersection bridge tables, CRS reprojection
+- SQL-based data contracts plus pytest "contract" tests
+- checksum-verified, manifest-driven snapshot distribution for the historical reference (~220MB analysis-ready artefact instead of reprocessing 220GB source data)
 
 ## Run a forecast and inspect the result
 
@@ -183,6 +177,10 @@ The forecast availability sensor is intentionally **stopped by default**. Start
 `dwd_icon_d2_ruc_availability_sensor` manually in the Dagster interface when
 automated ingestion is desired. It checks whether all required forecast fields
 are available before launching a run.
+
+For an optional background interface on this branch, see
+[containerized Dagster](docs/optional-dagster-container.md). The normal
+host-based commands and PostgreSQL installation remain unchanged.
 
 Run the default database-independent test suite:
 
