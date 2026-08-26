@@ -136,9 +136,9 @@ uv run --env-file .env python -m src.export_temperature_dashboard --serve
 ```
 
 Open <http://127.0.0.1:8765/>. Hover over a planning area to inspect its
-25-hour summary and compare the forecast with its historical median and each
-individual year from 1995 through 2025. Search and click-to-pin also support
-keyboard and touch use.
+25-hour summary and compare temperature or apparent-temperature forecasts with
+their historical medians and each individual year from 1995 through 2025.
+Search and click-to-pin also support keyboard and touch use.
 
 The dashboard is plain HTML, CSS, SVG, JavaScript, and static JSON. It has no
 frontend package, map-tile, CDN, or production database dependency. The same

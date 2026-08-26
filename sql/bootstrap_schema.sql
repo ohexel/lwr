@@ -4303,7 +4303,13 @@ SELECT
         AS temperature_difference_c,
     forecast.population_total,
     forecast.population_65plus,
-    forecast.population_status
+    forecast.population_status,
+    forecast.apparent_temperature_shade_c
+        AS forecast_apparent_temperature_c,
+    forecast.plr_apparent_temperature_median_c
+        AS historical_apparent_temperature_median_c,
+    forecast.apparent_temperature_shade_c - forecast.temperature_c
+        AS apparent_temperature_difference_c
 FROM analytical.plr_weather_context AS forecast
 JOIN latest_complete_run AS current_run
   ON current_run.run_time_utc = forecast.run_time_utc
@@ -4326,7 +4332,13 @@ WITH ranked_forecasts AS (
             ORDER BY
                 forecast.temperature_difference_c DESC NULLS LAST,
                 forecast.valid_time_berlin ASC
-        ) AS difference_rank
+        ) AS difference_rank,
+        ROW_NUMBER() OVER (
+            PARTITION BY forecast.plr_id
+            ORDER BY
+                forecast.apparent_temperature_difference_c DESC NULLS LAST,
+                forecast.valid_time_berlin ASC
+        ) AS apparent_difference_rank
     FROM analytical.current_plr_temperature_forecast_25h AS forecast
 )
 SELECT
@@ -4344,13 +4356,20 @@ SELECT
     SUM(forecast.temperature_difference_c) AS sum_temperature_difference_c,
     MAX(forecast.population_total) AS population_total,
     MAX(forecast.population_65plus) AS population_65plus,
-    MAX(forecast.population_status) AS population_status
+    MAX(forecast.population_status) AS population_status,
+    MAX(forecast.apparent_temperature_difference_c)
+        AS max_apparent_temperature_difference_c,
+    MIN(forecast.valid_time_berlin) FILTER (
+        WHERE forecast.apparent_difference_rank = 1
+    ) AS max_apparent_temperature_difference_at_berlin
 FROM ranked_forecasts AS forecast
 GROUP BY forecast.plr_id
 HAVING COUNT(*) = 25
    AND COUNT(forecast.plr_name) = 25
    AND COUNT(forecast.forecast_temperature_c) = 25
-   AND COUNT(forecast.historical_temperature_median_c) = 25;
+   AND COUNT(forecast.forecast_apparent_temperature_c) = 25
+   AND COUNT(forecast.historical_temperature_median_c) = 25
+   AND COUNT(forecast.historical_apparent_temperature_median_c) = 25;
 
 
 --
@@ -4390,6 +4409,7 @@ CREATE TABLE analytical.plr_temperature_history_25h (
     historical_year smallint NOT NULL,
     historical_valid_time_utc timestamp with time zone NOT NULL,
     historical_temperature_c double precision NOT NULL,
+    historical_apparent_temperature_c double precision NOT NULL,
     CONSTRAINT plr_temperature_history_25h_lead_hour_check
         CHECK (lead_hour BETWEEN 0 AND 24),
     CONSTRAINT plr_temperature_history_25h_historical_year_check
@@ -4535,7 +4555,8 @@ BEGIN
         lead_hour,
         historical_year,
         historical_valid_time_utc,
-        historical_temperature_c
+        historical_temperature_c,
+        historical_apparent_temperature_c
     )
     SELECT
         requested_run_time_utc,
@@ -4543,13 +4564,15 @@ BEGIN
         target.lead_hour,
         target.historical_year,
         hourly.valid_time_utc,
-        hourly.temperature_c
+        hourly.temperature_c,
+        hourly.apparent_temperature_shade_c
     FROM indexed_source_lookups AS target
     CROSS JOIN LATERAL (
         SELECT
             source.plr_id,
             source.valid_time_utc,
-            source.temperature_c
+            source.temperature_c,
+            source.apparent_temperature_shade_c
         FROM analytical.hostrada_plr_hourly AS source
         WHERE source.source_month_utc = target.source_month_utc
           AND source.valid_time_utc = target.historical_valid_time_utc
@@ -4592,7 +4615,10 @@ SELECT
         AS historical_valid_time_berlin,
     history.historical_temperature_c,
     forecast.forecast_temperature_c,
-    forecast.historical_temperature_median_c
+    forecast.historical_temperature_median_c,
+    history.historical_apparent_temperature_c,
+    forecast.forecast_apparent_temperature_c,
+    forecast.historical_apparent_temperature_median_c
 FROM analytical.current_plr_temperature_forecast_25h AS forecast
 JOIN analytical.plr_temperature_history_25h AS history
   ON history.run_time_utc = forecast.run_time_berlin

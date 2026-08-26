@@ -39,7 +39,13 @@ SELECT
         AS temperature_difference_c,
     forecast.population_total,
     forecast.population_65plus,
-    forecast.population_status
+    forecast.population_status,
+    forecast.apparent_temperature_shade_c
+        AS forecast_apparent_temperature_c,
+    forecast.plr_apparent_temperature_median_c
+        AS historical_apparent_temperature_median_c,
+    forecast.apparent_temperature_shade_c - forecast.temperature_c
+        AS apparent_temperature_difference_c
 FROM analytical.plr_weather_context AS forecast
 JOIN latest_complete_run AS current_run
   ON current_run.run_time_utc = forecast.run_time_utc
@@ -62,7 +68,13 @@ WITH ranked_forecasts AS (
             ORDER BY
                 forecast.temperature_difference_c DESC NULLS LAST,
                 forecast.valid_time_berlin ASC
-        ) AS difference_rank
+        ) AS difference_rank,
+        ROW_NUMBER() OVER (
+            PARTITION BY forecast.plr_id
+            ORDER BY
+                forecast.apparent_temperature_difference_c DESC NULLS LAST,
+                forecast.valid_time_berlin ASC
+        ) AS apparent_difference_rank
     FROM analytical.current_plr_temperature_forecast_25h AS forecast
 )
 SELECT
@@ -80,10 +92,17 @@ SELECT
     SUM(forecast.temperature_difference_c) AS sum_temperature_difference_c,
     MAX(forecast.population_total) AS population_total,
     MAX(forecast.population_65plus) AS population_65plus,
-    MAX(forecast.population_status) AS population_status
+    MAX(forecast.population_status) AS population_status,
+    MAX(forecast.apparent_temperature_difference_c)
+        AS max_apparent_temperature_difference_c,
+    MIN(forecast.valid_time_berlin) FILTER (
+        WHERE forecast.apparent_difference_rank = 1
+    ) AS max_apparent_temperature_difference_at_berlin
 FROM ranked_forecasts AS forecast
 GROUP BY forecast.plr_id
 HAVING COUNT(*) = 25
    AND COUNT(forecast.plr_name) = 25
    AND COUNT(forecast.forecast_temperature_c) = 25
-   AND COUNT(forecast.historical_temperature_median_c) = 25;
+   AND COUNT(forecast.forecast_apparent_temperature_c) = 25
+   AND COUNT(forecast.historical_temperature_median_c) = 25
+   AND COUNT(forecast.historical_apparent_temperature_median_c) = 25;

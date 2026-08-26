@@ -20,7 +20,10 @@ draw the map and chart as SVG using plain local JavaScript and CSS.
 Use hover for rapid exploration, click-to-pin for deliberate and touch-based
 selection, and name/ID search plus roving keyboard focus for accessibility.
 Expose forecast facts, historical observations and medians, and population
-counts without deriving a heat-risk category.
+counts without deriving a heat-risk category. Map shading offers highest
+forecast temperature, highest apparent-minus-forecast temperature difference,
+and residents aged 65 or older. The difference mode pairs temperature and
+apparent-temperature forecast-versus-history charts on the detail side.
 
 ## Consequences
 

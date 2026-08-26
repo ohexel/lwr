@@ -111,6 +111,23 @@ def test_bootstrap_installs_optional_history_after_complete_forecast_views():
     )
 
 
+def test_existing_history_cache_is_extended_from_indexed_hostrada_observations():
+    upgrade = (
+        PROJECT_ROOT / "sql" / "plr_apparent_temperature_history_25h.sql"
+    ).read_text(encoding="utf-8")
+    bootstrap = (
+        PROJECT_ROOT / "scripts" / "bootstrap_database.sh"
+    ).read_text(encoding="utf-8")
+
+    assert "source.source_month_utc = date_trunc" in upgrade
+    assert "source.valid_time_utc = history.historical_valid_time_utc" in upgrade
+    assert "source.apparent_temperature_shade_c" in upgrade
+    assert "ALTER COLUMN historical_apparent_temperature_c SET NOT NULL" in upgrade
+    assert bootstrap.index("< sql/plr_apparent_temperature_history_25h.sql") < (
+        bootstrap.index("< sql/plr_temperature_history_25h.sql")
+    )
+
+
 @pytest.mark.parametrize("reused_existing", [False, True])
 def test_refresh_reports_complete_optional_historical_contract(
     monkeypatch,

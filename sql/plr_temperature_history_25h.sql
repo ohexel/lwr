@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS analytical.plr_temperature_history_25h (
     historical_year smallint NOT NULL,
     historical_valid_time_utc timestamp with time zone NOT NULL,
     historical_temperature_c double precision NOT NULL,
+    historical_apparent_temperature_c double precision NOT NULL,
     CONSTRAINT plr_temperature_history_25h_lead_hour_check
         CHECK (lead_hour BETWEEN 0 AND 24),
     CONSTRAINT plr_temperature_history_25h_historical_year_check
@@ -153,7 +154,8 @@ BEGIN
         lead_hour,
         historical_year,
         historical_valid_time_utc,
-        historical_temperature_c
+        historical_temperature_c,
+        historical_apparent_temperature_c
     )
     SELECT
         requested_run_time_utc,
@@ -161,13 +163,15 @@ BEGIN
         target.lead_hour,
         target.historical_year,
         hourly.valid_time_utc,
-        hourly.temperature_c
+        hourly.temperature_c,
+        hourly.apparent_temperature_shade_c
     FROM indexed_source_lookups AS target
     CROSS JOIN LATERAL (
         SELECT
             source.plr_id,
             source.valid_time_utc,
-            source.temperature_c
+            source.temperature_c,
+            source.apparent_temperature_shade_c
         FROM analytical.hostrada_plr_hourly AS source
         WHERE source.source_month_utc = target.source_month_utc
           AND source.valid_time_utc = target.historical_valid_time_utc
@@ -210,7 +214,10 @@ SELECT
         AS historical_valid_time_berlin,
     history.historical_temperature_c,
     forecast.forecast_temperature_c,
-    forecast.historical_temperature_median_c
+    forecast.historical_temperature_median_c,
+    history.historical_apparent_temperature_c,
+    forecast.forecast_apparent_temperature_c,
+    forecast.historical_apparent_temperature_median_c
 FROM analytical.current_plr_temperature_forecast_25h AS forecast
 JOIN analytical.plr_temperature_history_25h AS history
   ON history.run_time_utc = forecast.run_time_berlin

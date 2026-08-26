@@ -48,10 +48,14 @@ eventual static host.
 - Click a PLR or a search result to pin it before moving across other areas.
 - Press `Esc` to unpin the selected PLR and resume hover exploration.
 - Search by PLR name or eight-digit ID.
-- Change map shading between peak forecast-minus-median difference, highest
-  forecast temperature, and residents aged 65 or older.
-- Hover over the chart to inspect the forecast, median, and historical range
-  at one Berlin-local hour.
+- Change map shading between highest forecast temperature, the highest
+  apparent-minus-forecast temperature difference, and residents aged 65 or
+  older.
+- The apparent-minus-forecast map mode shows coordinated forecast-temperature
+  and forecast-apparent-temperature charts on the right. Both compare the
+  current forecast with the PLR's historical median and 31 individual years.
+- Hover over either chart to inspect the forecast, median, and historical
+  range at one Berlin-local hour.
 - Use arrow keys to move between map areas and `Enter` or `Space` to pin one.
 
 ## Export a standalone publish folder
@@ -94,10 +98,11 @@ loading its stylesheet and script, and preserving the relative `data/` paths.
   export. The default is 20 metres; use `--simplify-meters` to benchmark another
   value.
 - The map export requires exactly one summary and polygon per installed PLR.
-- Each detail requires exactly 25 forecast and median points.
+- Each detail requires exactly 25 temperature and apparent-temperature
+  forecast and median points.
 - If any historical detail exists, every PLR must contain all 31 years and 25
-  points per year. Partial histories fail the export rather than produce a
-  misleading chart.
+  points per year for both indicators. Partial histories fail the export
+  rather than produce a misleading chart.
 - Files are replaced only after complete JSON serialization.
 - Human-readable names appear in presentation files; PLR IDs remain the lookup
   and filename key.

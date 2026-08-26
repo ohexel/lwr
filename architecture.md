@@ -212,7 +212,8 @@ horizon. Public forecast timestamps are expressed in Berlin local time.
 For each PLR, the summary reports the highest forecast temperature and its
 earliest local occurrence, the largest **signed** forecast-minus-historical-
 median difference and its earliest occurrence, the sum of all 25 signed
-differences, and the existing population values/status. A negative maximum
+difference, the largest apparent-minus-forecast temperature difference, and
+the existing population values/status. A negative maximum
 difference remains negative when every forecast hour is below its historical
 median; absolute differences are never substituted.
 
@@ -229,9 +230,10 @@ the source table's existing `(source_month_utc, valid_time_utc, plr_id)`
 primary key for 775 targeted timestamp lookups.
 
 The resulting `analytical.plr_temperature_history_25h` table retains only the
-current horizon's 420,050 historical points. Its plotting view adds the
-existing analyst-facing PLR name, corresponding forecast temperature, and
-historical median. Historical extraction is transactional, repeatable, and
+current horizon's 420,050 rows, each containing temperature and apparent
+temperature. Its plotting view adds the existing analyst-facing PLR name,
+corresponding forecasts, and historical medians. Historical extraction is
+transactional, repeatable, and
 never changes the original hourly observations, compact reference tables,
 existing forecast view, or neighborhood summary.
 
@@ -240,9 +242,10 @@ existing forecast view, or neighborhood summary.
 The optional presentation export reads the three 25-hour serving views and
 `normalized.plr`, simplifies the EPSG:25833 boundaries in PostGIS, and writes
 a self-contained static folder. One map file contains 542 geometries and their
-compact summaries. One small detail file per PLR contains its 25 forecast and
-median points plus 31 historical-year trajectories; the browser requests a
-detail only when that neighborhood is selected.
+compact summaries. One small detail file per PLR contains 25 forecast and
+median points for temperature and apparent temperature, plus 31 historical-year
+trajectories for both indicators; the browser requests a detail only when that
+neighborhood is selected.
 
 The browser draws projected PLR boundaries and line charts directly in SVG
 using local HTML, CSS, and JavaScript. It uses no map tiles, frontend framework,

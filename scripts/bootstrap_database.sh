@@ -178,6 +178,26 @@ forecast_horizon_installed="$(
                 AND to_regclass(
                     'analytical.current_plr_temperature_summary_25h'
                 ) IS NOT NULL
+                AND (
+                    SELECT COUNT(*)
+                    FROM information_schema.columns
+                    WHERE table_schema = 'analytical'
+                      AND (
+                          (
+                              table_name = 'current_plr_temperature_forecast_25h'
+                              AND column_name IN (
+                                  'forecast_apparent_temperature_c',
+                                  'historical_apparent_temperature_median_c',
+                                  'apparent_temperature_difference_c'
+                              )
+                          )
+                          OR (
+                              table_name = 'current_plr_temperature_summary_25h'
+                              AND column_name =
+                                  'max_apparent_temperature_difference_c'
+                          )
+                      )
+                ) = 4
             )::INTEGER
         "
 )"
@@ -201,11 +221,56 @@ historical_trajectories_installed="$(
                 AND to_regprocedure(
                     'analytical.refresh_plr_temperature_history_25h(timestamptz)'
                 ) IS NOT NULL
+                AND EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_schema = 'analytical'
+                      AND table_name = 'plr_temperature_history_25h'
+                      AND column_name =
+                          'historical_apparent_temperature_c'
+                )
+                AND EXISTS (
+                    SELECT 1
+                    FROM information_schema.columns
+                    WHERE table_schema = 'analytical'
+                      AND table_name =
+                          'current_plr_temperature_history_25h'
+                      AND column_name =
+                          'historical_apparent_temperature_c'
+                )
             )::INTEGER
         "
 )"
 
 if [[ "$historical_trajectories_installed" != 1 ]]; then
+    historical_storage_needs_apparent="$(
+        psql_command \
+            --tuples-only \
+            --no-align \
+            --command "
+                SELECT (
+                    to_regclass(
+                        'analytical.plr_temperature_history_25h'
+                    ) IS NOT NULL
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM information_schema.columns
+                        WHERE table_schema = 'analytical'
+                          AND table_name =
+                              'plr_temperature_history_25h'
+                          AND column_name =
+                              'historical_apparent_temperature_c'
+                    )
+                )::INTEGER
+            "
+    )"
+
+    if [[ "$historical_storage_needs_apparent" = 1 ]]; then
+        echo "Extending materialized trajectories with apparent temperature."
+        psql_command --single-transaction \
+            < sql/plr_apparent_temperature_history_25h.sql
+    fi
+
     echo "Installing optional historical-year temperature trajectory storage."
     psql_command --single-transaction < sql/plr_temperature_history_25h.sql
 fi

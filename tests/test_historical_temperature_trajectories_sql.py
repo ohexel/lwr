@@ -34,6 +34,7 @@ def install_temporary_historical_objects(connection):
             plr_id TEXT NOT NULL,
             geography_version TEXT NOT NULL,
             temperature_c DOUBLE PRECISION NOT NULL,
+            apparent_temperature_shade_c DOUBLE PRECISION NOT NULL,
             PRIMARY KEY (source_month_utc, valid_time_utc, plr_id)
         );
 
@@ -44,7 +45,9 @@ def install_temporary_historical_objects(connection):
             lead_hour INTEGER NOT NULL,
             valid_time_berlin TIMESTAMP NOT NULL,
             forecast_temperature_c DOUBLE PRECISION NOT NULL,
-            historical_temperature_median_c DOUBLE PRECISION NOT NULL
+            forecast_apparent_temperature_c DOUBLE PRECISION NOT NULL,
+            historical_temperature_median_c DOUBLE PRECISION NOT NULL,
+            historical_apparent_temperature_median_c DOUBLE PRECISION NOT NULL
         );
         """
     )
@@ -66,7 +69,17 @@ def populate_horizon(connection):
         forecast_local = local_run + timedelta(hours=lead)
         for plr_id, name in PLRS:
             forecast_rows.append(
-                (plr_id, name, local_run, lead, forecast_local, 28.0, 21.0)
+                (
+                    plr_id,
+                    name,
+                    local_run,
+                    lead,
+                    forecast_local,
+                    28.0,
+                    30.0,
+                    21.0,
+                    22.0,
+                )
             )
 
             for year in range(1995, 2027):
@@ -81,6 +94,7 @@ def populate_horizon(connection):
                         plr_id,
                         "2023-01-01",
                         float(year) + lead / 100,
+                        float(year) + lead / 100 + 2,
                     )
                 )
 
@@ -88,12 +102,12 @@ def populate_horizon(connection):
         cursor.executemany(
             """
             INSERT INTO pg_temp.current_plr_temperature_forecast_25h
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             forecast_rows,
         )
         cursor.executemany(
-            "INSERT INTO pg_temp.hostrada_plr_hourly VALUES (%s, %s, %s, %s, %s)",
+            "INSERT INTO pg_temp.hostrada_plr_hourly VALUES (%s, %s, %s, %s, %s, %s)",
             historical_rows,
         )
 
@@ -129,7 +143,9 @@ def test_history_extracts_31_years_across_a_berlin_month_boundary():
                 valid_time_berlin,
                 historical_valid_time_berlin,
                 historical_temperature_c,
-                forecast_temperature_c
+                historical_apparent_temperature_c,
+                forecast_temperature_c,
+                forecast_apparent_temperature_c
             FROM pg_temp.current_plr_temperature_history_25h
             WHERE plr_id = '01100101'
               AND historical_year = 2000
@@ -148,7 +164,9 @@ def test_history_extracts_31_years_across_a_berlin_month_boundary():
         datetime(2026, 9, 1, 0),
         datetime(2000, 9, 1, 0),
         2000.01,
+        2002.01,
         28.0,
+        30.0,
     )
     assert repeated == (2, 31, 25, 1_550, True)
 

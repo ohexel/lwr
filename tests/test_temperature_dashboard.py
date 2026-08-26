@@ -60,6 +60,8 @@ class Connection:
                         datetime(2026, 8, 25, 15),
                         4.25 + index,
                         datetime(2026, 8, 25, 15),
+                        2.75 + index,
+                        datetime(2026, 8, 25, 12),
                         31.5 + index,
                         total,
                         older,
@@ -73,13 +75,27 @@ class Connection:
             times = [f"2026-08-{24 + (hour + 18) // 24:02d}T{(hour + 18) % 24:02d}:00" for hour in range(25)]
             return Result(
                 rows=[
-                    (plr_id, times, [20 + hour / 4 for hour in range(25)], [19.0] * 25, 25)
+                    (
+                        plr_id,
+                        times,
+                        [20 + hour / 4 for hour in range(25)],
+                        [21 + hour / 4 for hour in range(25)],
+                        [19.0] * 25,
+                        [20.0] * 25,
+                        25,
+                    )
                     for plr_id, *_ in PLRS
                 ]
             )
         if query == dashboard.HISTORY_QUERY:
             years = [
-                {"year": year, "temperatures_c": [year / 100 + hour / 10 for hour in range(25)]}
+                {
+                    "year": year,
+                    "temperatures_c": [year / 100 + hour / 10 for hour in range(25)],
+                    "apparent_temperatures_c": [
+                        year / 100 + hour / 10 + 1 for hour in range(25)
+                    ],
+                }
                 for year in range(1995, 2026)
             ]
             if self.incomplete_history:
@@ -125,13 +141,17 @@ def test_static_export_writes_one_map_and_lazy_detail_per_plr(tmp_path, monkeypa
         (destination / "data" / "areas" / "01100101.json").read_text()
     )
     assert map_payload["coordinate_system"] == "EPSG:25833"
+    assert map_payload["format_version"] == 2
     assert map_payload["historical_year_count"] == 31
     assert len(map_payload["areas"]) == 2
     assert map_payload["areas"][0]["geometry"]["type"] == "MultiPolygon"
     assert len(detail["forecast_temperatures_c"]) == 25
+    assert len(detail["forecast_apparent_temperatures_c"]) == 25
     assert len(detail["historical_median_temperatures_c"]) == 25
+    assert len(detail["historical_median_apparent_temperatures_c"]) == 25
     assert len(detail["historical_years"]) == 31
     assert len(detail["historical_years"][0]["temperatures_c"]) == 25
+    assert len(detail["historical_years"][0]["apparent_temperatures_c"]) == 25
 
 
 def test_snapshot_only_export_remains_useful_without_individual_years(tmp_path, monkeypatch):
@@ -165,8 +185,8 @@ def test_browser_assets_are_dependency_free_and_load_details_lazily():
     stylesheet = (root / "styles.css").read_text(encoding="utf-8")
     combined = html + javascript + stylesheet
 
-    assert 'src="app.js?v=4"' in html
-    assert 'href="styles.css?v=4"' in html
+    assert 'src="app.js?v=6"' in html
+    assert 'href="styles.css?v=6"' in html
     assert 'src="http' not in html
     assert 'href="http' not in html
     assert "fetch(\"http" not in javascript
@@ -178,8 +198,20 @@ def test_browser_assets_are_dependency_free_and_load_details_lazily():
     assert "data/areas/${plrId}.json" in javascript
     assert 'addEventListener("pointerenter"' in javascript
     assert "historical_years" in javascript
+    assert "forecast_apparent_temperatures_c" in javascript
+    assert "apparent_temperatures_c" in javascript
     assert "forecast-line" in stylesheet
+    assert "comparison-line" in stylesheet
     assert "history-line" in stylesheet
+    assert "Highest forecast temperature" in html
+    assert "Highest difference between apparent and forecast temperature" in html
+    assert "Residents aged 65+" in html
+    assert "Forecast apparent temperature" in html
+    assert "Forecast temperature" in html
+    assert 'comparisonKey: "forecast_apparent_temperatures_c"' in javascript
+    assert 'comparisonKey: "forecast_temperatures_c"' in javascript
+    assert 'class: "comparison-line"' in javascript
+    assert "if (showComparison) tooltip.append(comparison)" in javascript
 
 
 def test_every_browser_element_reference_is_registered_before_use():
@@ -230,8 +262,10 @@ def test_hidden_loading_layers_cannot_intercept_map_or_chart_pointer_events():
     assert '[hidden] { display: none !important; }' in stylesheet
     assert 'elements["map-loading"].hidden = true' in javascript
     assert 'elements["chart-loading"].hidden = true' in javascript
-    assert 'elements["history-legend"].hidden = historical.length === 0' in javascript
-    assert 'elements["history-note"].hidden = historical.length !== 0' in javascript
+    assert 'elements[specification.legend].hidden = historical.length === 0' in javascript
+    assert 'elements[specification.note].hidden = historical.length !== 0' in javascript
+    assert 'elements["apparent-chart-section"].hidden = !compareApparent' in javascript
+    assert 'elements[specification.comparisonLegend].hidden = !compareApparent' in javascript
 
 
 def test_generated_dashboard_data_remains_out_of_git():

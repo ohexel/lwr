@@ -43,6 +43,8 @@ SELECT
     summary.max_forecast_temperature_at_berlin,
     summary.max_temperature_difference_c,
     summary.max_temperature_difference_at_berlin,
+    summary.max_apparent_temperature_difference_c,
+    summary.max_apparent_temperature_difference_at_berlin,
     summary.sum_temperature_difference_c,
     summary.population_total,
     summary.population_65plus,
@@ -73,9 +75,17 @@ SELECT
         ORDER BY forecast.lead_hour
     ) AS forecast_temperatures_c,
     jsonb_agg(
+        round(forecast.forecast_apparent_temperature_c::numeric, 2)
+        ORDER BY forecast.lead_hour
+    ) AS forecast_apparent_temperatures_c,
+    jsonb_agg(
         round(forecast.historical_temperature_median_c::numeric, 2)
         ORDER BY forecast.lead_hour
     ) AS historical_median_temperatures_c,
+    jsonb_agg(
+        round(forecast.historical_apparent_temperature_median_c::numeric, 2)
+        ORDER BY forecast.lead_hour
+    ) AS historical_median_apparent_temperatures_c,
     COUNT(*) AS lead_count
 FROM analytical.current_plr_temperature_forecast_25h AS forecast
 GROUP BY forecast.plr_id
@@ -91,6 +101,10 @@ WITH historical_years AS (
             round(history.historical_temperature_c::numeric, 2)
             ORDER BY history.lead_hour
         ) AS temperatures_c,
+        jsonb_agg(
+            round(history.historical_apparent_temperature_c::numeric, 2)
+            ORDER BY history.lead_hour
+        ) AS apparent_temperatures_c,
         COUNT(*) AS lead_count
     FROM analytical.current_plr_temperature_history_25h AS history
     GROUP BY history.plr_id, history.historical_year
@@ -100,7 +114,8 @@ SELECT
     jsonb_agg(
         jsonb_build_object(
             'year', historical.historical_year,
-            'temperatures_c', historical.temperatures_c
+            'temperatures_c', historical.temperatures_c,
+            'apparent_temperatures_c', historical.apparent_temperatures_c
         )
         ORDER BY historical.historical_year
     ) AS historical_years,
@@ -162,6 +177,8 @@ def summary_record(row: tuple[object, ...]) -> dict[str, object]:
         maximum_temperature_at,
         maximum_difference,
         maximum_difference_at,
+        maximum_apparent_difference,
+        maximum_apparent_difference_at,
         summed_difference,
         population_total,
         population_65plus,
@@ -183,6 +200,12 @@ def summary_record(row: tuple[object, ...]) -> dict[str, object]:
         "maximum_temperature_at_berlin": format_local_time(maximum_temperature_at),
         "maximum_difference_c": round_temperature(maximum_difference),
         "maximum_difference_at_berlin": format_local_time(maximum_difference_at),
+        "maximum_apparent_temperature_difference_c": round_temperature(
+            maximum_apparent_difference
+        ),
+        "maximum_apparent_temperature_difference_at_berlin": format_local_time(
+            maximum_apparent_difference_at
+        ),
         "summed_difference_c": round_temperature(summed_difference),
         "population_total": (
             int(population_total) if population_total is not None else None
@@ -207,12 +230,24 @@ def validate_historical_lines(plr_id: str, lines: object) -> list[dict[str, obje
 
     for line in lines:
         temperatures = line.get("temperatures_c")
+        apparent_temperatures = line.get("apparent_temperatures_c")
         if not isinstance(temperatures, list) or len(temperatures) != EXPECTED_LEAD_COUNT:
             raise RuntimeError(
                 f"PLR {plr_id}, historical year {line['year']}, "
                 "does not contain 25 temperature observations."
             )
+        if (
+            not isinstance(apparent_temperatures, list)
+            or len(apparent_temperatures) != EXPECTED_LEAD_COUNT
+        ):
+            raise RuntimeError(
+                f"PLR {plr_id}, historical year {line['year']}, "
+                "does not contain 25 apparent-temperature observations."
+            )
         line["temperatures_c"] = [round_temperature(value) for value in temperatures]
+        line["apparent_temperatures_c"] = [
+            round_temperature(value) for value in apparent_temperatures
+        ]
 
     return lines
 
@@ -265,12 +300,22 @@ def export_temperature_dashboard(
         )
 
     forecast_by_id = {}
-    for plr_id, valid_times, temperatures, medians, lead_count in forecast_rows:
+    for (
+        plr_id,
+        valid_times,
+        temperatures,
+        apparent_temperatures,
+        medians,
+        apparent_medians,
+        lead_count,
+    ) in forecast_rows:
         if (
             int(lead_count) != EXPECTED_LEAD_COUNT
             or len(valid_times) != EXPECTED_LEAD_COUNT
             or len(temperatures) != EXPECTED_LEAD_COUNT
+            or len(apparent_temperatures) != EXPECTED_LEAD_COUNT
             or len(medians) != EXPECTED_LEAD_COUNT
+            or len(apparent_medians) != EXPECTED_LEAD_COUNT
         ):
             raise RuntimeError(f"PLR {plr_id} does not contain all 25 forecast hours.")
         forecast_by_id[str(plr_id)] = {
@@ -278,8 +323,14 @@ def export_temperature_dashboard(
             "forecast_temperatures_c": [
                 round_temperature(value) for value in temperatures
             ],
+            "forecast_apparent_temperatures_c": [
+                round_temperature(value) for value in apparent_temperatures
+            ],
             "historical_median_temperatures_c": [
                 round_temperature(value) for value in medians
+            ],
+            "historical_median_apparent_temperatures_c": [
+                round_temperature(value) for value in apparent_medians
             ],
         }
 
@@ -315,7 +366,7 @@ def export_temperature_dashboard(
 
     run_time = next(iter(run_times))
     map_payload = {
-        "format_version": 1,
+        "format_version": 2,
         "generated_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "run_time_berlin": run_time,
         "coordinate_system": "EPSG:25833",

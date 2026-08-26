@@ -41,7 +41,9 @@ def install_temporary_serving_views(connection) -> None:
             lead_time TEXT NOT NULL,
             valid_time_berlin TIMESTAMP NOT NULL,
             temperature_c DOUBLE PRECISION NOT NULL,
+            apparent_temperature_shade_c DOUBLE PRECISION NOT NULL,
             plr_temperature_median_c DOUBLE PRECISION NOT NULL,
+            plr_apparent_temperature_median_c DOUBLE PRECISION NOT NULL,
             population_total BIGINT,
             population_65plus BIGINT,
             population_status TEXT NOT NULL
@@ -87,7 +89,9 @@ def insert_forecast_leads(connection, run_time, lead_hours) -> None:
                     lead_time,
                     valid_time_berlin,
                     temperature,
+                    temperature + (1.0 if lead_hour == 24 else 0.5),
                     historical_median,
+                    historical_median - 1,
                     total,
                     older,
                     status,
@@ -102,7 +106,7 @@ def insert_forecast_leads(connection, run_time, lead_hours) -> None:
         cursor.executemany(
             """
             INSERT INTO pg_temp.plr_weather_context
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             serving_rows,
         )
@@ -137,6 +141,8 @@ def test_complete_horizon_preserves_signed_differences_ties_and_population():
                 max_forecast_temperature_at_berlin,
                 max_temperature_difference_c,
                 max_temperature_difference_at_berlin,
+                max_apparent_temperature_difference_c,
+                max_apparent_temperature_difference_at_berlin,
                 sum_temperature_difference_c,
                 population_65plus,
                 population_status
@@ -160,6 +166,8 @@ def test_complete_horizon_preserves_signed_differences_ties_and_population():
         datetime(2026, 8, 24, 21),
         -4.0,
         datetime(2026, 8, 24, 21),
+        1.0,
+        datetime(2026, 8, 25, 18),
         -238.0,
         700,
         "available",
