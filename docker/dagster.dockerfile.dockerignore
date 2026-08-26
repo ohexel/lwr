@@ -1,0 +1,9 @@
+# This image installs dependencies only. Compose mounts the project at runtime.
+# In particular, never send retained source data or large snapshots to Docker.
+**
+!pyproject.toml
+!uv.lock
+!README.md
+!docker/
+!docker/dagster.dockerfile
+!docker/dagster.dockerfile.dockerignore

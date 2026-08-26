@@ -1,0 +1,50 @@
+services:
+  dagster:
+    build:
+      context: ..
+      dockerfile: docker/dagster.dockerfile
+    restart: unless-stopped
+    init: true
+    user: "${DAGSTER_UID:-1000}:${DAGSTER_GID:-1000}"
+    working_dir: /app
+    environment:
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      WEATHER_MASK_BUFFER_M: ${WEATHER_MASK_BUFFER_M:-5000}
+      WEATHER_RAW_PINNED_PARTITIONS: ${WEATHER_RAW_PINNED_PARTITIONS:-}
+      DAGSTER_HOME: /app/.dagster_home
+      PYTHONPATH: /app
+      HOME: /tmp
+    ports:
+      - "127.0.0.1:${DAGSTER_PORT:-3000}:3000"
+    volumes:
+      - ..:/app
+      - ./dagster-container.env:/app/.env:ro
+      - ./dagster.yaml:/app/.dagster_home/dagster.yaml:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+    command:
+      - dagster
+      - dev
+      - --host
+      - 0.0.0.0
+      - --port
+      - "3000"
+      - --module-name
+      - src.dagster_pipeline.definitions
+    cpus: ${DAGSTER_CPUS:-2.0}
+    mem_limit: ${DAGSTER_MEMORY_LIMIT:-2g}
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:3000/', timeout=5)"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
