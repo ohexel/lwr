@@ -83,12 +83,11 @@ def ensure_forecast_sources_available(
     )
 
 
-def run_forecast(
+def parse_forecast_request(
     run_time_label: str,
     lead_time_label: str,
-    *,
-    project_root: Path = PROJECT_ROOT,
-) -> dict[str, str]:
+) -> ForecastKey:
+    """Validate one public forecast request before accessing DWD or PostgreSQL."""
     if lead_time_label not in WEATHER_LEAD_TIMES:
         raise ValueError(
             "Unsupported project lead time: "
@@ -121,10 +120,19 @@ def run_forecast(
             "Run labels use UTC, not Berlin-local time."
         )
 
-    forecast = ForecastKey(
+    return ForecastKey(
         run_time=run_time,
         lead_time=parse_lead_time(lead_time_label),
     )
+
+
+def run_forecast(
+    run_time_label: str,
+    lead_time_label: str,
+    *,
+    project_root: Path = PROJECT_ROOT,
+) -> dict[str, str]:
+    forecast = parse_forecast_request(run_time_label, lead_time_label)
     ensure_forecast_sources_available(forecast, project_root=project_root)
     partition_key = weather_partition_key(forecast)
     ensure_dagster_home(project_root)

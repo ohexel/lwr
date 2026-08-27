@@ -194,6 +194,65 @@ Historical joins are left joins. Forecasts occurring on Berlin-local February
 population reference date, source checksums, sample counts, threshold flags,
 and exposure classifications stay out of the serving contract.
 
+### Complete 25-point forecast and neighborhood summary
+
+The feature branch adds two separate, presentation-oriented views without
+changing the existing 23-column single-partition contract:
+
+| Relation | Grain | Expected rows |
+| --- | --- | ---: |
+| `analytical.current_plr_temperature_forecast_25h` | One PLR and one forecast lead hour, 0–24. | 13,550 |
+| `analytical.current_plr_temperature_summary_25h` | One PLR across the complete forecast horizon. | 542 |
+| `analytical.current_plr_temperature_history_25h` | One PLR, forecast lead hour, and historical year, 1995–2025; optional. | 420,050 |
+
+Both views select the newest model run containing all 25 lead hours for all
+installed PLRs. A newer incomplete run never displaces a previous complete
+horizon. Public forecast timestamps are expressed in Berlin local time.
+
+For each PLR, the summary reports the highest forecast temperature and its
+earliest local occurrence, the largest **signed** forecast-minus-historical-
+median difference and its earliest occurrence, the sum of all 25 signed
+difference, the largest apparent-minus-forecast temperature difference, and
+the existing population values/status. A negative maximum
+difference remains negative when every forecast hour is below its historical
+median; absolute differences are never substituted.
+
+The detailed plotting view reads only the established forecast context and its
+already-installed reference medians. It does not read, rebuild, or retain the
+147-million-row HOSTRADA historical observation table.
+
+Individual historical-year trajectories are a separate, explicitly opted-in
+extension. They require the original populated
+`analytical.hostrada_plr_hourly` table, rather than the compact reference
+snapshot. PostgreSQL resolves each forecast hour to the same Berlin-local
+calendar hour in historical years 1995–2025, then uses both leading columns of
+the source table's existing `(source_month_utc, valid_time_utc, plr_id)`
+primary key for 775 targeted timestamp lookups.
+
+The resulting `analytical.plr_temperature_history_25h` table retains only the
+current horizon's 420,050 rows, each containing temperature and apparent
+temperature. Its plotting view adds the existing analyst-facing PLR name,
+corresponding forecasts, and historical medians. Historical extraction is
+transactional, repeatable, and
+never changes the original hourly observations, compact reference tables,
+existing forecast view, or neighborhood summary.
+
+### Static temperature dashboard
+
+The optional presentation export reads the three 25-hour serving views and
+`normalized.plr`, simplifies the EPSG:25833 boundaries in PostGIS, and writes
+a self-contained static folder. One map file contains 542 geometries and their
+compact summaries. One small detail file per PLR contains 25 forecast and
+median points for temperature and apparent temperature, plus 31 historical-year
+trajectories for both indicators; the browser requests a detail only when that
+neighborhood is selected.
+
+The browser draws projected PLR boundaries and line charts directly in SVG
+using local HTML, CSS, and JavaScript. It uses no map tiles, frontend framework,
+CDN, API endpoint, or live database connection. This keeps PostgreSQL
+credentials out of the website and makes the exported folder deployable on an
+ordinary static host.
+
 ## Failure boundaries and restart behavior
 
 - The database bootstrap applies one canonical schema to an empty database and
@@ -206,6 +265,8 @@ and exposure classifications stay out of the serving contract.
 - Forecast files and forecast-only PostgreSQL rows share a rolling retention
   window of at most 24 hours; retained files remain reprocessable within that
   window without relying on upstream availability.
+- The 25-point forecast runner processes one lead at a time, resumes validated
+  partitions, and publishes a horizon only after every PLR and lead is present.
 - The optional historical backfill commits one validated month at a time and
   removes its large source files only after durable outputs pass validation.
 

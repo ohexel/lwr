@@ -4264,6 +4264,114 @@ CREATE VIEW analytical.current_plr_weather_context AS
          LIMIT 1) current_partition ON (((current_partition.run_time_utc = context_row.run_time_utc) AND (current_partition.lead_time = context_row.lead_time))));
 
 
+-- The 25-point extension reads forecast facts and precomputed reference
+-- medians only; historical HOSTRADA observations are deliberately excluded.
+CREATE VIEW analytical.current_plr_temperature_forecast_25h AS
+WITH expected_leads AS (
+    SELECT
+        lead_hour,
+        'PT' || lpad(lead_hour::text, 3, '0') || 'H00M' AS lead_time
+    FROM generate_series(0, 24) AS expected(lead_hour)
+),
+expected_plr_count AS (
+    SELECT COUNT(*)::bigint AS plr_count
+    FROM analytical.plr_display_name
+),
+latest_complete_run AS (
+    SELECT forecast.run_time_utc
+    FROM analytical.plr_weather_population AS forecast
+    JOIN expected_leads AS expected
+      ON expected.lead_time = forecast.lead_time
+    CROSS JOIN expected_plr_count
+    GROUP BY forecast.run_time_utc, expected_plr_count.plr_count
+    HAVING expected_plr_count.plr_count > 0
+       AND COUNT(*) = expected_plr_count.plr_count * 25
+       AND COUNT(DISTINCT forecast.plr_id) = expected_plr_count.plr_count
+       AND COUNT(DISTINCT forecast.lead_time) = 25
+    ORDER BY forecast.run_time_utc DESC
+    LIMIT 1
+)
+SELECT
+    forecast.plr_id,
+    forecast.plr_name,
+    forecast.run_time_utc AT TIME ZONE 'Europe/Berlin' AS run_time_berlin,
+    expected.lead_hour::integer AS lead_hour,
+    forecast.valid_time_berlin,
+    forecast.temperature_c AS forecast_temperature_c,
+    forecast.plr_temperature_median_c AS historical_temperature_median_c,
+    forecast.temperature_c - forecast.plr_temperature_median_c
+        AS temperature_difference_c,
+    forecast.population_total,
+    forecast.population_65plus,
+    forecast.population_status,
+    forecast.apparent_temperature_shade_c
+        AS forecast_apparent_temperature_c,
+    forecast.plr_apparent_temperature_median_c
+        AS historical_apparent_temperature_median_c,
+    forecast.apparent_temperature_shade_c - forecast.temperature_c
+        AS apparent_temperature_difference_c
+FROM analytical.plr_weather_context AS forecast
+JOIN latest_complete_run AS current_run
+  ON current_run.run_time_utc = forecast.run_time_utc
+JOIN expected_leads AS expected
+  ON expected.lead_time = forecast.lead_time;
+
+
+CREATE VIEW analytical.current_plr_temperature_summary_25h AS
+WITH ranked_forecasts AS (
+    SELECT
+        forecast.*,
+        ROW_NUMBER() OVER (
+            PARTITION BY forecast.plr_id
+            ORDER BY
+                forecast.forecast_temperature_c DESC NULLS LAST,
+                forecast.valid_time_berlin ASC
+        ) AS temperature_rank,
+        ROW_NUMBER() OVER (
+            PARTITION BY forecast.plr_id
+            ORDER BY
+                forecast.temperature_difference_c DESC NULLS LAST,
+                forecast.valid_time_berlin ASC
+        ) AS difference_rank,
+        ROW_NUMBER() OVER (
+            PARTITION BY forecast.plr_id
+            ORDER BY
+                forecast.apparent_temperature_difference_c DESC NULLS LAST,
+                forecast.valid_time_berlin ASC
+        ) AS apparent_difference_rank
+    FROM analytical.current_plr_temperature_forecast_25h AS forecast
+)
+SELECT
+    forecast.plr_id,
+    MAX(forecast.plr_name) AS plr_name,
+    MIN(forecast.run_time_berlin) AS run_time_berlin,
+    MAX(forecast.forecast_temperature_c) AS max_forecast_temperature_c,
+    MIN(forecast.valid_time_berlin) FILTER (
+        WHERE forecast.temperature_rank = 1
+    ) AS max_forecast_temperature_at_berlin,
+    MAX(forecast.temperature_difference_c) AS max_temperature_difference_c,
+    MIN(forecast.valid_time_berlin) FILTER (
+        WHERE forecast.difference_rank = 1
+    ) AS max_temperature_difference_at_berlin,
+    SUM(forecast.temperature_difference_c) AS sum_temperature_difference_c,
+    MAX(forecast.population_total) AS population_total,
+    MAX(forecast.population_65plus) AS population_65plus,
+    MAX(forecast.population_status) AS population_status,
+    MAX(forecast.apparent_temperature_difference_c)
+        AS max_apparent_temperature_difference_c,
+    MIN(forecast.valid_time_berlin) FILTER (
+        WHERE forecast.apparent_difference_rank = 1
+    ) AS max_apparent_temperature_difference_at_berlin
+FROM ranked_forecasts AS forecast
+GROUP BY forecast.plr_id
+HAVING COUNT(*) = 25
+   AND COUNT(forecast.plr_name) = 25
+   AND COUNT(forecast.forecast_temperature_c) = 25
+   AND COUNT(forecast.forecast_apparent_temperature_c) = 25
+   AND COUNT(forecast.historical_temperature_median_c) = 25
+   AND COUNT(forecast.historical_apparent_temperature_median_c) = 25;
+
+
 --
 -- Name: hostrada_berlin_hourly; Type: TABLE; Schema: analytical; Owner: -
 --
@@ -4291,6 +4399,232 @@ CREATE TABLE analytical.hostrada_plr_hourly (
     temperature_c double precision NOT NULL,
     apparent_temperature_shade_c double precision NOT NULL
 );
+
+
+-- Optional historical-year trajectories never enter the compact reference.
+CREATE TABLE analytical.plr_temperature_history_25h (
+    run_time_utc timestamp with time zone NOT NULL,
+    plr_id text NOT NULL,
+    lead_hour smallint NOT NULL,
+    historical_year smallint NOT NULL,
+    historical_valid_time_utc timestamp with time zone NOT NULL,
+    historical_temperature_c double precision NOT NULL,
+    historical_apparent_temperature_c double precision NOT NULL,
+    CONSTRAINT plr_temperature_history_25h_lead_hour_check
+        CHECK (lead_hour BETWEEN 0 AND 24),
+    CONSTRAINT plr_temperature_history_25h_historical_year_check
+        CHECK (historical_year BETWEEN 1995 AND 2025),
+    CONSTRAINT plr_temperature_history_25h_pkey
+        PRIMARY KEY (run_time_utc, plr_id, historical_year, lead_hour)
+);
+
+
+CREATE FUNCTION analytical.refresh_plr_temperature_history_25h(
+    requested_run_time_utc timestamp with time zone
+)
+RETURNS TABLE (
+    plr_count integer,
+    historical_year_count integer,
+    lead_hour_count integer,
+    historical_row_count bigint,
+    reused_existing boolean
+)
+LANGUAGE plpgsql
+AS $function$
+DECLARE
+    expected_plr_count integer;
+    expected_forecast_count integer;
+    expected_history_count bigint;
+    installed_history_count bigint;
+BEGIN
+    IF requested_run_time_utc IS NULL THEN
+        RAISE EXCEPTION 'A forecast run time in UTC is required.';
+    END IF;
+
+    PERFORM pg_advisory_xact_lock(
+        hashtext('analytical.plr_temperature_history_25h')
+    );
+
+    SELECT
+        COUNT(DISTINCT forecast.plr_id)::integer,
+        COUNT(*)::integer
+    INTO expected_plr_count, expected_forecast_count
+    FROM analytical.current_plr_temperature_forecast_25h AS forecast
+    WHERE forecast.run_time_berlin =
+        requested_run_time_utc AT TIME ZONE 'Europe/Berlin';
+
+    IF expected_plr_count < 1
+       OR expected_forecast_count <> expected_plr_count * 25
+    THEN
+        RAISE EXCEPTION
+            'The requested run is not the current complete 25-point forecast.';
+    END IF;
+
+    expected_history_count := expected_plr_count::bigint * 25 * 31;
+
+    SELECT COUNT(*)
+    INTO installed_history_count
+    FROM analytical.plr_temperature_history_25h AS history
+    WHERE history.run_time_utc = requested_run_time_utc;
+
+    IF installed_history_count = expected_history_count THEN
+        DELETE FROM analytical.plr_temperature_history_25h AS history
+        WHERE history.run_time_utc <> requested_run_time_utc;
+
+        RETURN QUERY
+        SELECT
+            expected_plr_count,
+            31,
+            25,
+            installed_history_count,
+            true;
+        RETURN;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM analytical.hostrada_plr_hourly AS hourly
+        WHERE hourly.source_month_utc >= DATE '1995-01-01'
+          AND hourly.source_month_utc < DATE '2026-01-01'
+    ) THEN
+        RAISE EXCEPTION
+            'Historical trajectories require the original 1995-2025 HOSTRADA hourly observations; the compact reference snapshot is insufficient.';
+    END IF;
+
+    DELETE FROM analytical.plr_temperature_history_25h;
+
+    WITH selected_forecast AS MATERIALIZED (
+        SELECT
+            forecast.plr_id,
+            forecast.lead_hour,
+            forecast.valid_time_berlin
+        FROM analytical.current_plr_temperature_forecast_25h AS forecast
+        WHERE forecast.run_time_berlin =
+            requested_run_time_utc AT TIME ZONE 'Europe/Berlin'
+    ),
+    forecast_hours AS MATERIALIZED (
+        SELECT DISTINCT
+            forecast.lead_hour,
+            forecast.valid_time_berlin
+        FROM selected_forecast AS forecast
+    ),
+    forecast_plrs AS MATERIALIZED (
+        SELECT DISTINCT forecast.plr_id
+        FROM selected_forecast AS forecast
+    ),
+    historical_local_hours AS MATERIALIZED (
+        SELECT
+            forecast.lead_hour,
+            historical.year::smallint AS historical_year,
+            make_timestamp(
+                historical.year,
+                EXTRACT(MONTH FROM forecast.valid_time_berlin)::integer,
+                EXTRACT(DAY FROM forecast.valid_time_berlin)::integer,
+                EXTRACT(HOUR FROM forecast.valid_time_berlin)::integer,
+                0,
+                0
+            ) AS historical_valid_time_berlin
+        FROM forecast_hours AS forecast
+        CROSS JOIN generate_series(1995, 2025) AS historical(year)
+    ),
+    historical_utc_hours AS MATERIALIZED (
+        SELECT
+            target.lead_hour,
+            target.historical_year,
+            target.historical_valid_time_berlin,
+            target.historical_valid_time_berlin
+                AT TIME ZONE 'Europe/Berlin' AS historical_valid_time_utc
+        FROM historical_local_hours AS target
+    ),
+    indexed_source_lookups AS MATERIALIZED (
+        SELECT
+            target.lead_hour,
+            target.historical_year,
+            target.historical_valid_time_utc,
+            date_trunc(
+                'month',
+                target.historical_valid_time_utc AT TIME ZONE 'UTC'
+            )::date AS source_month_utc
+        FROM historical_utc_hours AS target
+        WHERE target.historical_valid_time_utc AT TIME ZONE 'Europe/Berlin'
+            = target.historical_valid_time_berlin
+    )
+    INSERT INTO analytical.plr_temperature_history_25h (
+        run_time_utc,
+        plr_id,
+        lead_hour,
+        historical_year,
+        historical_valid_time_utc,
+        historical_temperature_c,
+        historical_apparent_temperature_c
+    )
+    SELECT
+        requested_run_time_utc,
+        hourly.plr_id,
+        target.lead_hour,
+        target.historical_year,
+        hourly.valid_time_utc,
+        hourly.temperature_c,
+        hourly.apparent_temperature_shade_c
+    FROM indexed_source_lookups AS target
+    CROSS JOIN LATERAL (
+        SELECT
+            source.plr_id,
+            source.valid_time_utc,
+            source.temperature_c,
+            source.apparent_temperature_shade_c
+        FROM analytical.hostrada_plr_hourly AS source
+        WHERE source.source_month_utc = target.source_month_utc
+          AND source.valid_time_utc = target.historical_valid_time_utc
+        -- Preserve one parameterized index lookup per historical timestamp.
+        OFFSET 0
+    ) AS hourly
+    JOIN forecast_plrs AS geography
+      ON geography.plr_id = hourly.plr_id;
+
+    GET DIAGNOSTICS installed_history_count = ROW_COUNT;
+
+    IF installed_history_count <> expected_history_count THEN
+        RAISE EXCEPTION
+            'Historical trajectory extraction returned % rows; expected % for % PLRs, 25 lead hours, and 31 historical years.',
+            installed_history_count,
+            expected_history_count,
+            expected_plr_count;
+    END IF;
+
+    RETURN QUERY
+    SELECT
+        expected_plr_count,
+        31,
+        25,
+        installed_history_count,
+        false;
+END;
+$function$;
+
+
+CREATE VIEW analytical.current_plr_temperature_history_25h AS
+SELECT
+    forecast.plr_id,
+    forecast.plr_name,
+    forecast.run_time_berlin,
+    forecast.lead_hour,
+    forecast.valid_time_berlin,
+    history.historical_year,
+    history.historical_valid_time_utc AT TIME ZONE 'Europe/Berlin'
+        AS historical_valid_time_berlin,
+    history.historical_temperature_c,
+    forecast.forecast_temperature_c,
+    forecast.historical_temperature_median_c,
+    history.historical_apparent_temperature_c,
+    forecast.forecast_apparent_temperature_c,
+    forecast.historical_apparent_temperature_median_c
+FROM analytical.current_plr_temperature_forecast_25h AS forecast
+JOIN analytical.plr_temperature_history_25h AS history
+  ON history.run_time_utc = forecast.run_time_berlin
+        AT TIME ZONE 'Europe/Berlin'
+ AND history.plr_id = forecast.plr_id
+ AND history.lead_hour = forecast.lead_hour;
 
 
 --

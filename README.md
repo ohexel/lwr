@@ -68,6 +68,84 @@ Forecast run labels use UTC; very recent runs may not yet be published and
 older runs may have left DWD's rolling availability window. A complete
 partition contains all 542 planning areas. The Dagster UI is not required.
 
+## Run the complete 25-point temperature forecast
+
+This feature branch also supports a complete 24-hour horizon: lead hours 0
+through 24 produce **25 hourly observations for each of Berlin's 542 PLRs**.
+For an existing installation, install the additive serving views once:
+
+```bash
+bash scripts/bootstrap_database.sh
+```
+
+Run all forecast partitions sequentially, automatically skipping any that are
+already complete:
+
+```bash
+uv run --env-file .env python -m src.run_forecast_horizon \
+  --run-time "$(date -u -d '2 hours ago' +%Y%m%dT%H00)"
+```
+
+Inspect the compact neighborhood summary:
+
+```bash
+docker compose --env-file .env -f docker/postgres.yml \
+  exec -T postgres \
+  sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "
+    SELECT
+      plr_name,
+      ROUND(max_forecast_temperature_c::numeric, 1) AS maximum_c,
+      max_forecast_temperature_at_berlin AS maximum_at,
+      ROUND(max_temperature_difference_c::numeric, 1)
+        AS maximum_above_historical_median_c,
+      ROUND(sum_temperature_difference_c::numeric, 1)
+        AS sum_of_hourly_differences_c,
+      population_65plus
+    FROM analytical.current_plr_temperature_summary_25h
+    ORDER BY max_temperature_difference_c DESC
+    LIMIT 10;
+  "'
+```
+
+The separate `analytical.current_plr_temperature_forecast_25h` view provides
+all 13,550 plotting points, including forecast temperatures, corresponding
+PLR-specific historical medians, and signed differences. Both views switch to
+a newer model run only after all 25 lead times are complete. These two views
+require only the existing historical-reference snapshot.
+
+If your database also contains the original HOSTRADA hourly observations,
+optionally extract a separate historical line for every year from 1995 to
+2025. This reuses the current complete forecast without contacting DWD:
+
+```bash
+uv run --env-file .env python -m src.historical_temperature_trajectories
+```
+
+The resulting `analytical.current_plr_temperature_history_25h` view contains
+420,050 plotting observations: 542 neighborhoods, 25 lead hours, and 31
+historical years. The compact reference archive alone cannot reconstruct these
+individual observations, and ordinary installations do not need this feature.
+
+## Explore the interactive Berlin map locally
+
+After the 25-hour forecast and optional historical trajectories are ready,
+export the current results and start a local preview:
+
+```bash
+uv run --env-file .env python -m src.export_temperature_dashboard --serve
+```
+
+Open <http://127.0.0.1:8765/>. Hover over a planning area to inspect its
+25-hour summary and compare temperature or apparent-temperature forecasts with
+their historical medians and each individual year from 1995 through 2025.
+Search and click-to-pin also support keyboard and touch use.
+
+The dashboard is plain HTML, CSS, SVG, JavaScript, and static JSON. It has no
+frontend package, map-tile, CDN, or production database dependency. The same
+folder can therefore be uploaded to a static website. See
+[docs/static-temperature-dashboard.md](docs/static-temperature-dashboard.md)
+for iteration, export, and deployment details.
+
 ## Start here
 
 | Document | Use it when you want to... |
@@ -77,6 +155,7 @@ partition contains all 542 planning areas. The Dagster UI is not required.
 | [docs/data-sources.md](docs/data-sources.md) | Check source contracts, acquisition behavior, licenses, and attribution. |
 | [docs/distribution.md](docs/distribution.md) | Obtain, verify, or publish the external installation archives. |
 | [docs/testing.md](docs/testing.md) | Choose the small set of tests appropriate to your environment. |
+| [docs/static-temperature-dashboard.md](docs/static-temperature-dashboard.md) | Preview and publish the interactive PLR map as static files. |
 | [docs/historical-rebuild.md](docs/historical-rebuild.md) | Optionally reconstruct the HOSTRADA reference from original DWD data. |
 | [docs/adr/README.md](docs/adr/README.md) | Review the principal architectural decisions and their tradeoffs. |
 

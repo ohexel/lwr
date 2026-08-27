@@ -99,6 +99,9 @@ def test_canonical_bootstrap_uses_only_named_schema_entry_points():
     assert "sql/bootstrap_schema.sql" in bootstrap_script
     assert "sql/hostrada_reference_snapshot_validation.sql" in bootstrap_script
     assert "sql/plr_display_names.sql" in bootstrap_script
+    assert "sql/plr_temperature_forecast_25h.sql" in bootstrap_script
+    assert "sql/plr_apparent_temperature_history_25h.sql" in bootstrap_script
+    assert "sql/plr_temperature_history_25h.sql" in bootstrap_script
     assert "TRUNCATE TABLE" not in bootstrap_script
 
     sql_files = {
@@ -108,6 +111,9 @@ def test_canonical_bootstrap_uses_only_named_schema_entry_points():
         "bootstrap_schema.sql",
         "hostrada_reference_snapshot_validation.sql",
         "plr_display_names.sql",
+        "plr_apparent_temperature_history_25h.sql",
+        "plr_temperature_forecast_25h.sql",
+        "plr_temperature_history_25h.sql",
     }
 
 
@@ -140,7 +146,7 @@ def test_database_reset_is_explicitly_confirmed_and_separate_from_bootstrap():
 
 def test_manual_forecast_rejects_a_lead_time_outside_the_project_contract():
     with pytest.raises(ValueError, match="Unsupported project lead time"):
-        run_forecast("20260824T1200", "PT003H00M")
+        run_forecast("20260824T1200", "PT025H00M")
 
 
 def test_operational_bootstrap_verifies_reference_before_expensive_work(

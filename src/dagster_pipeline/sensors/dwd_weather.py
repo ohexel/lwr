@@ -26,6 +26,7 @@ RUN_DISCOVERY_INDICATOR = "T_2M"
 SENSOR_MAX_RUN_TIMES = 3
 SENSOR_MINIMUM_INTERVAL_SECONDS = 300
 SENSOR_MAX_ATTEMPTS = 5
+SENSOR_MAX_RUN_REQUESTS_PER_TICK = 5
 
 WEATHER_RUN_SCOPE_TAG = "weather_run_scope"
 FORECAST_PIPELINE_RUN_SCOPE = "forecast_pipeline"
@@ -119,6 +120,7 @@ def dwd_icon_d2_ruc_availability_sensor(
                 lead_time_labels=WEATHER_LEAD_TIMES,
                 minimum_run_time=forecast_partition_window_start(),
                 max_run_times=SENSOR_MAX_RUN_TIMES,
+                max_ready_forecasts=SENSOR_MAX_RUN_REQUESTS_PER_TICK,
             )
 
             context.log.info(
@@ -147,7 +149,7 @@ def dwd_icon_d2_ruc_availability_sensor(
 
     run_requests = []
 
-    for availability in decision.ready:
+    for availability in decision.ready[:SENSOR_MAX_RUN_REQUESTS_PER_TICK]:
         forecast = availability.forecast
 
         runs = context.instance.get_runs(
