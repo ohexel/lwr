@@ -36,8 +36,8 @@ services:
       - "3000"
       - --module-name
       - src.dagster_pipeline.definitions
-    cpus: ${DAGSTER_CPUS:-2.0}
-    mem_limit: ${DAGSTER_MEMORY_LIMIT:-2g}
+    cpus: ${DAGSTER_CPUS:-3.0}
+    mem_limit: ${DAGSTER_MEMORY_LIMIT:-10g}
     healthcheck:
       test:
         - CMD

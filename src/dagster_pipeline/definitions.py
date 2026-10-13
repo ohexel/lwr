@@ -1,7 +1,13 @@
 import dagster as dg
 
+from src.dagster_pipeline.assets.dashboard_export import (
+    DASHBOARD_EXPORT_ASSETS,
+)
 from src.dagster_pipeline.assets.database_analytical import (
     ANALYTICAL_ASSETS,
+)
+from src.dagster_pipeline.assets.historical_trajectories import (
+    HISTORICAL_TRAJECTORIES_ASSETS,
 )
 from src.dagster_pipeline.assets.database_bridge import (
     BRIDGE_ASSETS,
@@ -64,14 +70,22 @@ from src.dagster_pipeline.checks.database_weather_raw import (
     WEATHER_RAW_CHECKS,
 )
 from src.dagster_pipeline.jobs import (
+    HISTORICAL_TRAJECTORIES_JOB,
     HOSTRADA_MONTHLY_JOB,
     HOSTRADA_REFERENCE_JOB,
     HOSTRADA_SPATIAL_JOB,
     ICON_D2_RUC_FORECAST_JOB,
     ICON_D2_RUC_RAW_ACQUISITION_JOB,
+    STATIC_DASHBOARD_EXPORT_JOB,
+)
+from src.dagster_pipeline.sensors.dashboard_export import (
+    dashboard_export_sensor,
 )
 from src.dagster_pipeline.sensors.dwd_weather import (
     dwd_icon_d2_ruc_availability_sensor,
+)
+from src.dagster_pipeline.sensors.historical_trajectories import (
+    historical_trajectories_sensor,
 )
 from src.dagster_pipeline.static_bootstrap_job import (
     OPERATIONAL_STATIC_JOB,
@@ -91,6 +105,8 @@ defs = dg.Definitions(
         *WEATHER_RAW_ASSETS,
         *WEATHER_NORMALIZED_ASSETS,
         *ANALYTICAL_ASSETS,
+        *HISTORICAL_TRAJECTORIES_ASSETS,
+        *DASHBOARD_EXPORT_ASSETS,
     ],
     asset_checks=[
         *POPULATION_CHECKS,
@@ -111,8 +127,12 @@ defs = dg.Definitions(
         HOSTRADA_SPATIAL_JOB,
         HOSTRADA_MONTHLY_JOB,
         HOSTRADA_REFERENCE_JOB,
+        HISTORICAL_TRAJECTORIES_JOB,
+        STATIC_DASHBOARD_EXPORT_JOB,
     ],
     sensors=[
         dwd_icon_d2_ruc_availability_sensor,
+        historical_trajectories_sensor,
+        dashboard_export_sensor,
     ],
 )
