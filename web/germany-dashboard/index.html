@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Germany 24-hour temperature forecast</title>
+  <link rel="icon" href="data:,">
+  <meta name="description" content="Maximum shade apparent temperature over the next 24 hours for every German Land, Kreis and Gemeinde, from the DWD ICON-D2-RUC forecast.">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css"
+        integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
+  <link rel="stylesheet" href="styles.css?v=1">
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"
+          integrity="sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/pmtiles@3.2.1/dist/pmtiles.js"
+          integrity="sha384-QfbOCebHNw8pQiPAOd2IFee2v2A5VYZxBk0+JGZ5H+3mfzVIp6zsQNkTsfGJot93" crossorigin="anonymous" defer></script>
+  <script src="app.js?v=1" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <p class="eyebrow">DWD ICON-D2-RUC · Zensus 2022 · VG250</p>
+    <h1>Germany: the next 24 hours</h1>
+    <p class="run" id="run-time" aria-live="polite">Loading forecast run…</p>
+  </header>
+
+  <main class="layout">
+    <section class="controls" aria-label="Map controls">
+      <fieldset>
+        <legend>Level</legend>
+        <label><input type="radio" name="level" value="lan"> Länder</label>
+        <label><input type="radio" name="level" value="krs" checked> Kreise</label>
+        <label><input type="radio" name="level" value="gem"> Gemeinden</label>
+      </fieldset>
+
+      <fieldset id="weighting-field">
+        <legend>Kreis and Land values</legend>
+        <label><input type="radio" name="weighting" value="area" checked> Area-weighted</label>
+        <label><input type="radio" name="weighting" value="pop"> Population-weighted</label>
+      </fieldset>
+
+      <div class="search">
+        <label for="region-search">Find a region</label>
+        <input id="region-search" type="search" list="region-options" autocomplete="off"
+               placeholder="Name, e.g. Leipzig">
+        <datalist id="region-options"></datalist>
+      </div>
+
+      <div class="legend" aria-labelledby="legend-title">
+        <p id="legend-title" class="legend-title">Max. shade apparent temperature, next 24 h</p>
+        <div class="legend-bar" id="legend-bar"></div>
+        <div class="legend-ticks" id="legend-ticks"></div>
+        <p class="legend-nodata"><span class="swatch nodata"></span> No value</p>
+        <p class="legend-nodata">Scale fitted to this run in 5 °C steps; compare colours within one run only.</p>
+      </div>
+
+      <section class="details" id="details" aria-live="polite">
+        <p class="hint">Hover over or click a region, or search for it by name.</p>
+      </section>
+
+      <p class="bund" id="bund"></p>
+    </section>
+
+    <div class="map-wrap">
+      <div id="map" role="region" aria-label="Map of Germany coloured by maximum shade apparent temperature"></div>
+      <div id="tooltip" class="tooltip" hidden></div>
+    </div>
+  </main>
+
+  <footer class="notes">
+    <p>
+      <strong>Shade apparent temperature</strong> combines air temperature, humidity and
+      wind speed (the same formula as the Berlin dashboard). Solar radiation is not
+      included, so it is not a full heat-stress measure. Gemeinde values are
+      area-weighted means of ICON-D2 grid cells (about 2.2 km). Kreis and Land values
+      are means of their Gemeinden, weighted by area or by Zensus 2022 residents.
+    </p>
+    <p>
+      <strong>Residents:</strong> Zensus 2022 total population on 15 May 2022.
+      Most unincorporated areas (gemeindefreie Gebiete) have no census record; they
+      are shown with a forecast but without residents.
+    </p>
+    <p class="attribution">
+      Forecast: Deutscher Wetterdienst (DWD), ICON-D2-RUC, CC BY 4.0 ·
+      Boundaries: <a href="https://www.bkg.bund.de">© GeoBasis-DE / BKG 2022 (Daten verändert)</a>,
+      <a href="https://www.govdata.de/dl-de/by-2-0">dl-de/by-2-0</a> ·
+      Population: Zensus 2022, © Statistische Ämter des Bundes und der Länder, Deutschland, 2026,
+      <a href="https://www.govdata.de/dl-de/by-2-0">dl-de/by-2-0</a> ·
+      Aggregation by this project; not an official publication.
+    </p>
+  </footer>
+</body>
+</html>

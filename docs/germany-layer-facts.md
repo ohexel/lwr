@@ -100,11 +100,23 @@ results: 1.4 × 10⁻¹⁴ °C (floating-point summation order).
 | `refresh_de_hierarchy` | 11.4 s |
 | `refresh_de_population` | 1.0 s |
 
+## Map export (measured 2026-11-09, run 19:00 UTC)
+
+| Fact | Value |
+| --- | ---: |
+| Boundary tiles `vg250-2022-12-31.pmtiles` (3 layers, zoom 4-10, tippecanoe 2.53.0) | 13,136,477 bytes |
+| `values.json` (10,990 + 400 + 16 regions) | 1,765,099 bytes; 320,871 gzip-compressed |
+| Export with tile build | 32.2 s |
+| Export of values only (tiles exist) | 11.1 s |
+| Scripted session in headless Chromium (load, Kreis, Gemeinde, Land, zoom-in), values + tile requests | 21 requests, 4.16 MB uncompressed, largest single tile range 425 KB |
+| Console errors in headless Chromium (levels, hover, search, weighting, 390 px mobile width) | 0 |
+| HTTP Range on www.ohexel.com and ohexel.com (232 MB file) | 206 for first, middle and suffix ranges |
+
 ## Tests (2026-11-09, after M4)
 
 | Suite | Result |
 | --- | ---: |
-| Default suite `uv run python -m pytest` (Berlin + Germany unit and contract) | 152 passed |
+| Default suite `uv run python -m pytest` (Berlin + Germany unit and contract) | 152 passed (after M5: 173) |
 | Germany tests incl. integration and acceptance (4 files) | 36 passed |
-| Germany acceptance tests on the installed database (run 19:00 UTC served) | 6 passed in 44 s |
+| Germany acceptance tests on the installed database (run 19:00 UTC served) | 6 passed in 44 s (after M5: 7) |
 | Diff vs. `main` (lines removed from existing files) | 0 |

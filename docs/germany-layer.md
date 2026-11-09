@@ -95,6 +95,50 @@ leaves headroom for days with steeper gradients along the outline. If Berlin's
 own stored output (`analytical.plr_weather`) exists for the same run time, it
 is compared as well; otherwise the check reports it as not available.
 
+## Map
+
+A separate static page in `web/germany-dashboard/` (the Berlin dashboard is
+not touched). MapLibre GL JS 4.7.1 and PMTiles 3.2.1 are loaded from
+jsDelivr with pinned versions and Subresource Integrity hashes; there is no
+basemap and no API key.
+
+```bash
+# export (and build the boundary tiles on first use), then preview locally
+uv run --env-file .env python -m src.export_germany_dashboard --serve
+# -> http://127.0.0.1:8766/
+```
+
+| File in `web/germany-dashboard/data/` | Content | Rebuilt |
+| --- | --- | --- |
+| `vg250-2022-12-31.pmtiles` | Land, Kreis and Gemeinde outlines, zoom 4-10, property `k` = regional key only | once per geography version, or with `--rebuild-tiles` (needs `tippecanoe`) |
+| `values.json` | current complete run: per region the 24-hour maximum of shade apparent temperature and air temperature with their hour, residents, names, a point inside the region | every export |
+
+Generated files are git-ignored. The page joins values to outlines with
+MapLibre feature-state (`promoteId: "k"`), so tiles are never rebuilt per run.
+
+**What it shows.** A choropleth of the maximum shade apparent temperature
+over the next 24 hours at Land, Kreis or Gemeinde level (radio buttons,
+keyboard operable). Kreis and Land values switch between area- and
+population-weighted roll-ups. Hover or click shows name, parents, maximum
+with its time (Europe/Berlin), maximum air temperature and residents;
+"Find a region" does the same by name and zooms to it. The forecast run time
+is in the header.
+
+**Colour scale.** ColorBrewer YlOrRd, continuous, sequential in lightness
+(readable with the common colour-vision deficiencies). The range is this
+run's Gemeinde minimum to maximum, widened to whole 5 °C steps, and shared by
+all three levels. Because it follows the run, the same colour can mean
+different temperatures on different days; the legend says so. No warning
+classes are drawn (D5).
+
+**Upload.** Copy the whole `web/germany-dashboard/` folder (including
+`data/`) to the web host. The host must answer HTTP Range requests for the
+`.pmtiles` file; www.ohexel.com and ohexel.com both do (tested 2026-11-09:
+`206 Partial Content` for first, middle and suffix ranges, no content
+encoding). The page loads tiles from its own origin; the host sends no CORS
+headers, so the tiles cannot be loaded from a page on another domain. For a
+new run, re-export and upload `data/values.json` only.
+
 ## SQL vs. Python aggregation (open decision 2)
 
 Both implementations run on the same decoded fields for every partition

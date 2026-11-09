@@ -154,3 +154,22 @@ def test_retention_keeps_at_most_two_complete_runs() -> None:
         (GEOGRAPHY_VERSION,),
     )[0]
     assert runs_with_cells == complete + incomplete
+
+
+def test_map_values_export_is_complete_for_the_current_run() -> None:
+    from src.export_germany_dashboard import collect_values
+
+    with database_connection(application_name="lwr_germany_acceptance") as connection:
+        values = collect_values(connection)  # raises on any gap
+        current = connection.execute(
+            "SELECT run_time_utc FROM analytical.de_current_run"
+        ).fetchone()[0]
+    assert values["run_time_utc"] == current.strftime("%Y-%m-%dT%H:%MZ")
+    assert values["tiles"] == f"{GEOGRAPHY_VERSION}.pmtiles"
+    assert len(values["valid_times_berlin"]) == LEAD_TIMES
+    assert (len(values["lan"]), len(values["krs"]), len(values["gem"])) == (
+        LAENDER, KREISE, GEMEINDEN,
+    )
+    assert values["bund"]["p"] == 82_711_282
+    low, high = values["apparent_range_c"]
+    assert all(low <= r["a"] <= high for r in values["gem"].values())
