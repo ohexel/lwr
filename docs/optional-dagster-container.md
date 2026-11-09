@@ -97,7 +97,7 @@ docker compose \
 
 ## Optional local limits
 
-The container defaults to two CPU cores, 2 GiB of memory, and interface port
+The container defaults to three CPU cores, 10 GiB of memory, and interface port
 3000. Override these values in `.env` or the current shell when needed:
 
 ```bash
