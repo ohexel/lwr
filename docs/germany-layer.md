@@ -28,13 +28,19 @@ with Berlin and written only to files, plus the Germany aggregation), then
 `germany_forecast_publish`. The Berlin availability sensor does not trigger
 Germany jobs and stays stopped by default.
 
+Databases that ran the first M3 version (wide `de_icon_cell_weather` table)
+need the one-off migration `sql/germany/migrations/001_slim_cell_values.sql`
+once, after the schema has been applied (any Germany job applies it). It copies
+the retained cell values into the slim layout and then drops the old
+Germany-only table; it does nothing on a database without that table.
+
 ## Data flow
 
 | Step | Object | Notes |
 | --- | --- | --- |
 | Grid subset | `normalized.de_icon_cell` | ICON cells intersecting a Gemeinde, rebuilt from the grid's lon/lat vertices in EPSG:3035 (not reprojected from Berlin's EPSG:25833 cells) |
 | Bridge | `normalized.de_icon_cell_gemeinde_bridge` | intersection area and `fraction_of_gemeinde`, versioned by geography and grid |
-| Cell forecast | `normalized.de_icon_cell_weather` | per cell and lead time: temperature and shade apparent temperature, computed with Berlin's units and `normalized.calculate_apparent_temperature_shade_c` |
+| Cell forecast | `normalized.de_forecast_run`, `normalized.de_icon_cell_value` | one row per run (geography version, grid) and one row per run, lead hour and cell: temperature and shade apparent temperature, computed with Berlin's units and `normalized.calculate_apparent_temperature_shade_c`; lead-time label and valid time are derived from the lead hour |
 | Gemeinde forecast | `normalized.de_gemeinde_forecast` | area-weighted from cells, like Berlin's PLR values |
 | Serving | `analytical.de_current_{gemeinde,kreis,land,bund}_forecast_25h`, `analytical.de_current_gemeinde_summary` | newest run with every Gemeinde × 25 lead times |
 

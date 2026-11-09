@@ -119,7 +119,7 @@ def analytical_de_current_forecast_25h(context: dg.AssetExecutionContext) -> Non
                 (SELECT COUNT(*) FROM analytical.de_current_bund_forecast_25h),
                 (SELECT COUNT(*) FROM analytical.de_current_gemeinde_summary),
                 (SELECT COUNT(DISTINCT run_time_utc) FROM normalized.de_gemeinde_forecast),
-                pg_total_relation_size('normalized.de_icon_cell_weather'),
+                pg_total_relation_size('normalized.de_icon_cell_value'),
                 pg_total_relation_size('normalized.de_gemeinde_forecast')
             """
         ).fetchone()
@@ -135,7 +135,7 @@ def analytical_de_current_forecast_25h(context: dg.AssetExecutionContext) -> Non
             "bund_rows": int(counts[3]),
             "gemeinde_summary_rows": int(counts[4]),
             "retained_runs": int(counts[5]),
-            "cell_weather_bytes": int(counts[6]),
+            "cell_value_bytes": int(counts[6]),
             "gemeinde_forecast_bytes": int(counts[7]),
         }
     )

@@ -109,9 +109,10 @@ def de_forecast_plausibility() -> dg.AssetCheckResult:
                   AND f.geography_version = cur.geography_version
             ),
             c AS (
-                SELECT w.* FROM normalized.de_icon_cell_weather AS w, cur
-                WHERE w.run_time_utc = cur.run_time_utc
-                  AND w.geography_version = cur.geography_version
+                SELECT w.* FROM normalized.de_icon_cell_value AS w
+                JOIN normalized.de_forecast_run AS r USING (run_time_utc)
+                JOIN cur ON cur.run_time_utc = r.run_time_utc
+                        AND cur.geography_version = r.geography_version
             )
             SELECT
                 (SELECT COUNT(*) FROM g),

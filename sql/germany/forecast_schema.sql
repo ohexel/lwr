@@ -42,16 +42,25 @@ CREATE TABLE IF NOT EXISTS normalized.de_icon_cell_gemeinde_bridge (
 -- Forecast facts. Retained for the newest complete run and the complete run
 -- before it (plus a newer run while it is still loading).
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS normalized.de_icon_cell_weather (
-    run_time_utc timestamp with time zone NOT NULL,
-    lead_time text NOT NULL,
-    valid_time_utc timestamp with time zone NOT NULL,
+-- One row per run: the geography version and grid the cell values belong
+-- to. Cell rows reference it, so they need not repeat these text keys.
+CREATE TABLE IF NOT EXISTS normalized.de_forecast_run (
+    run_time_utc timestamp with time zone PRIMARY KEY,
     geography_version text NOT NULL,
-    source_grid_id text NOT NULL,
+    source_grid_id text NOT NULL
+);
+
+-- Per-cell values (decision B, slimmed 2026-11-09): run, lead hour and cell
+-- index only; lead_time label and valid time are derived (valid = run +
+-- lead_hour). double precision is kept: float4 would save only ~10 % more.
+CREATE TABLE IF NOT EXISTS normalized.de_icon_cell_value (
+    run_time_utc timestamp with time zone NOT NULL
+        REFERENCES normalized.de_forecast_run (run_time_utc),
+    lead_hour smallint NOT NULL CHECK (lead_hour BETWEEN 0 AND 24),
     cell_index integer NOT NULL,
     temperature_c double precision,
     apparent_temperature_shade_c double precision,
-    PRIMARY KEY (run_time_utc, lead_time, geography_version, source_grid_id, cell_index)
+    PRIMARY KEY (run_time_utc, lead_hour, cell_index)
 );
 
 CREATE TABLE IF NOT EXISTS normalized.de_gemeinde_forecast (
@@ -231,21 +240,37 @@ CREATE OR REPLACE FUNCTION normalized.refresh_de_forecast_partition(
 DECLARE
     v_cells bigint;
     v_gemeinden bigint;
+    v_lead_hour smallint := (
+        EXTRACT(EPOCH FROM (p_valid_time_utc - p_run_time_utc)) / 3600
+    )::smallint;
+    v_run normalized.de_forecast_run%ROWTYPE;
 BEGIN
-    DELETE FROM normalized.de_icon_cell_weather AS w
-    WHERE w.run_time_utc = p_run_time_utc AND w.lead_time = p_lead_time
-      AND w.geography_version = p_geography_version;
+    IF p_lead_time <> format('PT%sH00M', lpad(v_lead_hour::text, 3, '0')) THEN
+        RAISE EXCEPTION 'lead_time % does not match valid - run = % h',
+            p_lead_time, v_lead_hour;
+    END IF;
+    INSERT INTO normalized.de_forecast_run
+    VALUES (p_run_time_utc, p_geography_version, p_source_grid_id)
+    ON CONFLICT (run_time_utc) DO NOTHING;
+    SELECT * INTO v_run FROM normalized.de_forecast_run AS r
+    WHERE r.run_time_utc = p_run_time_utc;
+    IF v_run.geography_version <> p_geography_version
+       OR v_run.source_grid_id <> p_source_grid_id THEN
+        RAISE EXCEPTION 'run % is registered for % / %, not % / %',
+            p_run_time_utc, v_run.geography_version, v_run.source_grid_id,
+            p_geography_version, p_source_grid_id;
+    END IF;
+
+    DELETE FROM normalized.de_icon_cell_value AS w
+    WHERE w.run_time_utc = p_run_time_utc AND w.lead_hour = v_lead_hour;
     DELETE FROM normalized.de_gemeinde_forecast AS f
     WHERE f.run_time_utc = p_run_time_utc AND f.lead_time = p_lead_time
       AND f.geography_version = p_geography_version;
 
-    INSERT INTO normalized.de_icon_cell_weather
+    INSERT INTO normalized.de_icon_cell_value
     SELECT
         p_run_time_utc,
-        p_lead_time,
-        p_valid_time_utc,
-        p_geography_version,
-        p_source_grid_id,
+        v_lead_hour,
         physical.cell_index,
         physical.temperature_c,
         normalized.calculate_apparent_temperature_shade_c(
@@ -277,11 +302,9 @@ BEGIN
         SUM(w.apparent_temperature_shade_c * b.fraction_of_gemeinde)
             / SUM(b.fraction_of_gemeinde)
     FROM normalized.de_icon_cell_gemeinde_bridge AS b
-    JOIN normalized.de_icon_cell_weather AS w
+    JOIN normalized.de_icon_cell_value AS w
       ON w.run_time_utc = p_run_time_utc
-     AND w.lead_time = p_lead_time
-     AND w.geography_version = b.geography_version
-     AND w.source_grid_id = b.source_grid_id
+     AND w.lead_hour = v_lead_hour
      AND w.cell_index = b.cell_index
     WHERE b.geography_version = p_geography_version
       AND b.source_grid_id = p_source_grid_id
@@ -529,7 +552,7 @@ CREATE OR REPLACE FUNCTION normalized.de_berlin_cross_layer(
     AS $$
     WITH plr AS (
         SELECT
-            w.lead_time,
+            format('PT%sH00M', lpad(w.lead_hour::text, 3, '0')) AS lead_time,
             b.plr_id,
             MIN(b.plr_area_m2) AS plr_area_m2,
             SUM(w.temperature_c * b.fraction_of_plr) / SUM(b.fraction_of_plr)
@@ -537,13 +560,15 @@ CREATE OR REPLACE FUNCTION normalized.de_berlin_cross_layer(
             SUM(w.apparent_temperature_shade_c * b.fraction_of_plr)
                 / SUM(b.fraction_of_plr) AS apparent_c
         FROM normalized.icon_plr_area_bridge AS b
-        JOIN normalized.de_icon_cell_weather AS w
-          ON w.run_time_utc = p_run_time_utc
-         AND w.geography_version = p_geography_version
-         AND w.source_grid_id = b.source_grid_id
+        JOIN normalized.de_forecast_run AS run
+          ON run.run_time_utc = p_run_time_utc
+         AND run.geography_version = p_geography_version
+         AND run.source_grid_id = b.source_grid_id
+        JOIN normalized.de_icon_cell_value AS w
+          ON w.run_time_utc = run.run_time_utc
          AND w.cell_index = b.cell_index
         WHERE b.source_grid_id = p_source_grid_id
-        GROUP BY w.lead_time, b.plr_id
+        GROUP BY w.lead_hour, b.plr_id
     ),
     plr_rollup AS (
         SELECT plr.lead_time,
@@ -617,10 +642,15 @@ BEGIN
         RETURN;
     END IF;
 
-    DELETE FROM normalized.de_icon_cell_weather AS w
-    WHERE w.geography_version = p_geography_version
+    DELETE FROM normalized.de_icon_cell_value AS w
+    USING normalized.de_forecast_run AS r
+    WHERE r.run_time_utc = w.run_time_utc
+      AND r.geography_version = p_geography_version
       AND w.run_time_utc < v_cutoff;
     GET DIAGNOSTICS v_cells = ROW_COUNT;
+    DELETE FROM normalized.de_forecast_run AS r
+    WHERE r.geography_version = p_geography_version
+      AND r.run_time_utc < v_cutoff;
 
     DELETE FROM normalized.de_gemeinde_forecast AS f
     WHERE f.geography_version = p_geography_version

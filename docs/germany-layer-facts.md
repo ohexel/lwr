@@ -62,8 +62,13 @@ dates. Nothing here is estimated.
 | Rows per run: Gemeinden × 25 lead times | 274,750 |
 | Serving rows per run: Kreis / Land / Bund | 10,000 / 400 / 25 |
 | Wall time of one 25-lead run incl. DWD download, both implementations | 156 s, 167 s, 166 s |
+| Same, slim cell layout (run 19:00 UTC) | 237 s (214 s partitions + 23 s publish) |
+| SQL compute-and-store per lead time, slim layout (run 19:00 UTC, mean) | 1.26 s (wide layout: 0.94–1.04 s) |
 | DWD GRIB download per lead time (4 fields) | 3.3 MB |
-| Storage with 2 retained runs: `de_icon_cell_weather` (heap + indexes) | 1,259 MB (743 + 516) |
+| Storage with 2 retained runs, first layout `de_icon_cell_weather` (heap + indexes) | 1,259 MB (743 + 516) |
+| Same 2 runs in the slim layout `de_icon_cell_value`, freshly written (heap + PK) | 361 MB (237 + 124) |
+| Same 2 runs, slim layout with float4 instead of double precision (not adopted) | 329 MB (205 + 124) |
+| Slim layout on disk after one retention cycle (space of the pruned run is reused, not returned) | 541 MB (355 + 186) |
 | Storage with 2 retained runs: `de_gemeinde_forecast` | 168 MB |
 | Bund mean at lead 0 of run 16:00 UTC, area- vs. population-weighted temperature | 5.25 °C vs. 6.08 °C |
 
