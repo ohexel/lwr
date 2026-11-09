@@ -87,7 +87,10 @@ class ZensusContract:
     reference_date: date
     territorial_status: date
     age_variable: str
-    age_65plus_code: str
+    # The measure served by the Germany layer is total population: the row
+    # of each region without an age class (empty 2_variable_attribute_code).
+    # Destatis publishes official population counts unperturbed; the age
+    # classes are perturbed by the Cell Key Method and stay raw-only.
     age_class_codes: tuple[str, ...]
     publisher: str
     license: str
@@ -107,7 +110,6 @@ ZENSUS_CONTRACT = ZensusContract(
     reference_date=date(2022, 5, 15),
     territorial_status=date(2022, 5, 15),
     age_variable="ALTKL1",
-    age_65plus_code="ALT065BXXX",
     age_class_codes=(
         "ALT000B017",
         "ALT018B029",

@@ -257,15 +257,17 @@ records; normalization filters to GF = 4.
 | Kreise (`krs`) | 430 | 400 |
 | Gemeinden (`gem`) | 11,119 | 10,990 |
 
-## Germany layer: Zensus 2022 population by age
+## Germany layer: Zensus 2022 population
 
 - Publisher: Statistische Ämter des Bundes und der Länder.
 - Database: Zensusdatenbank, <https://ergebnisse.zensus2022.de/>.
 - Table: **1000A-1003** "Personen: Alter (5 Altersklassen)", statistic 1000A
   "Bevölkerung kompakt (Gebietsstand 15.05.2022)".
 - Reference date (*Stichtag*): 2022-05-15. Gebietsstand: 15.05.2022.
-- Age classes (`ALTKL1`): under 18, 18–29, 30–49, 50–64, and
-  **`ALT065BXXX` "65 Jahre und älter"**, which gives an exact 65+ cut.
+- Measure used by the Germany layer: **total population** per region, the
+  row without an age class. The five age classes (`ALTKL1`: under 18,
+  18–29, 30–49, 50–64, 65 and older) are loaded into raw as delivered but are
+  not served.
 - Retrieval: Zensus REST API (`/api/rest/2020/data/tablefile`, format
   `ffcsv`), one request per regional variable. Each file also contains the
   Germany (`GEODL1`) rows.
@@ -309,13 +311,23 @@ do not necessarily add up to the published total, and that official
 population counts of administrative units are published unchanged
 ([Destatis: Geheimhaltung mit der Cell-Key-Methode](https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bevoelkerung/Zensus2022/Datenbank/geheimhaltung-cell-key-methode.html);
 [Destatis: Zensus 2022 Geheimhaltung](https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bevoelkerung/Zensus2022/Methoden/geheimhaltung.html)).
-The age breakdown is therefore perturbed. Observed on the loaded files: the
-sum of Gemeinde values for 65+ is 18,389,751 against a published Germany value
-of 18,390,209 (−458); the sum of Kreis values is 18,390,045 (−164). Source
-checks compare such sums within a documented tolerance.
+This is why the layer uses total population: the age breakdown is perturbed
+(e.g. Gemeinde values for 65+ sum to 18,389,751 against a published Germany
+value of 18,390,209), while total population is not. Observed on the loaded
+files for total population:
 
-**Sign "-".** 42 Gemeinde counts (34 Gemeinden) are delivered as `-`; one of
-them is a 65+ count. The sign legend in Destatis' Zensus 2022
+| Comparison | Result |
+| --- | --- |
+| Σ Gemeinden per Kreis vs. published Kreis total | exact for all 400 Kreise |
+| Σ Gemeinden, Σ Kreise, Σ Länder | 82,711,282 each |
+| Published Germany (`GEODL1`) total | 82,719,540 (+8,258 vs. Σ Länder) |
+
+The 8,258-person gap between the Germany total and the sum of the Länder is
+in the source itself and is not yet explained; it must be resolved or
+documented before the source-total check (M4) is finalised.
+
+**Sign "-".** 42 Gemeinde age-class counts (34 Gemeinden) are delivered as
+`-`; no total-population count is. The sign legend in Destatis' Zensus 2022
 `Regionaltabelle_Bevoelkerung.xlsx` defines "– = Genau Null oder auf Null
 geändert" (exactly zero, or changed to zero). No legend was found for the
 database table itself; the project applies this definition and keeps the

@@ -52,10 +52,9 @@ def test_vg250_contract_counts() -> None:
 
 
 @pytest.mark.contract
-def test_zensus_contract_has_exact_65plus_cut() -> None:
+def test_zensus_contract_extracts() -> None:
     assert ZENSUS_CONTRACT.table_code == "1000A-1003"
-    assert ZENSUS_CONTRACT.age_65plus_code == "ALT065BXXX"
-    assert ZENSUS_CONTRACT.age_class_codes[-1] == "ALT065BXXX"
+    assert not hasattr(ZENSUS_CONTRACT, "age_65plus_code")
     assert len(ZENSUS_CONTRACT.age_class_codes) == 5
     assert {
         (extract.regional_variable, extract.region_count)

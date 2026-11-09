@@ -88,8 +88,9 @@ def de_zensus2022_age_source_contract() -> dg.AssetCheckResult:
                     WHERE variable_1_code <> 'GEODL1'
                 ),
                 COUNT(DISTINCT variable_1_attribute_code) FILTER (
-                    WHERE variable_2_attribute_code = %s
+                    WHERE variable_2_attribute_code IS NULL
                       AND value_unit = 'Anzahl'
+                      AND value ~ '^[0-9]+$'
                       AND variable_1_code <> 'GEODL1'
                 ),
                 COUNT(DISTINCT variable_2_attribute_code) FILTER (
@@ -102,7 +103,7 @@ def de_zensus2022_age_source_contract() -> dg.AssetCheckResult:
             WHERE source_sha256 = ANY(%s)
             GROUP BY source_sha256
             """,
-            (ZENSUS_CONTRACT.age_65plus_code, list(expected_hashes)),
+            (list(expected_hashes),),
         ).fetchall()
 
     observed = {row[0]: row[1:] for row in rows}
@@ -114,16 +115,16 @@ def de_zensus2022_age_source_contract() -> dg.AssetCheckResult:
         if got is None:
             failures.append(f"{name}: not loaded")
             continue
-        regions, regions_65, classes, germany_rows, first, last = got
+        regions, regions_total, classes, germany_rows, first, last = got
         metadata[name] = {
             "regions": int(regions),
-            "regions_with_65plus_count": int(regions_65),
+            "regions_with_numeric_total": int(regions_total),
             "age_classes": int(classes),
             "germany_rows": int(germany_rows),
         }
-        if regions != extract.region_count or regions_65 != extract.region_count:
+        if regions != extract.region_count or regions_total != extract.region_count:
             failures.append(
-                f"{name}: {regions} regions / {regions_65} with a 65+ count, "
+                f"{name}: {regions} regions / {regions_total} with a numeric total, "
                 f"expected {extract.region_count}"
             )
         if classes != len(ZENSUS_CONTRACT.age_class_codes):
@@ -139,7 +140,8 @@ def de_zensus2022_age_source_contract() -> dg.AssetCheckResult:
         metadata={"observed": metadata, "failures": failures},
         description=(
             "Each Zensus extract covers the contracted number of regions, "
-            "every region has a 65+ count, all five age classes exist, the "
+            "every region has a numeric total population, all five age "
+            "classes exist, the "
             "Germany total is present and the reference date is 2022-05-15."
         ),
     )
