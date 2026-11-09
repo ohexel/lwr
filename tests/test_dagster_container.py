@@ -18,8 +18,8 @@ def test_dagster_overlay_preserves_database_and_shared_state_boundaries() -> Non
     assert "condition: service_healthy" in overlay
     assert 'user: "${DAGSTER_UID:-1000}:${DAGSTER_GID:-1000}"' in overlay
     assert '"127.0.0.1:${DAGSTER_PORT:-3000}:3000"' in overlay
-    assert "cpus: ${DAGSTER_CPUS:-2.0}" in overlay
-    assert "mem_limit: ${DAGSTER_MEMORY_LIMIT:-2g}" in overlay
+    assert "cpus: ${DAGSTER_CPUS:-3.0}" in overlay
+    assert "mem_limit: ${DAGSTER_MEMORY_LIMIT:-10g}" in overlay
 
 
 def test_dagster_image_keeps_locked_dependencies_outside_project_mount() -> None:
