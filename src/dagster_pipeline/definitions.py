@@ -36,6 +36,9 @@ from src.dagster_pipeline.assets.database_weather_normalized import (
 from src.dagster_pipeline.assets.database_weather_raw import (
     WEATHER_RAW_ASSETS,
 )
+from src.dagster_pipeline.assets.germany_normalized import (
+    GERMANY_NORMALIZED_ASSETS,
+)
 from src.dagster_pipeline.assets.germany_raw import (
     GERMANY_RAW_ASSETS,
 )
@@ -47,6 +50,9 @@ from src.dagster_pipeline.checks.database_analytical import (
 )
 from src.dagster_pipeline.checks.database_bridge import (
     BRIDGE_CHECKS,
+)
+from src.dagster_pipeline.checks.germany_normalized import (
+    GERMANY_NORMALIZED_CHECKS,
 )
 from src.dagster_pipeline.checks.germany_raw import (
     GERMANY_RAW_CHECKS,
@@ -114,6 +120,7 @@ defs = dg.Definitions(
         *HISTORICAL_TRAJECTORIES_ASSETS,
         *DASHBOARD_EXPORT_ASSETS,
         *GERMANY_RAW_ASSETS,
+        *GERMANY_NORMALIZED_ASSETS,
     ],
     asset_checks=[
         *POPULATION_CHECKS,
@@ -127,6 +134,7 @@ defs = dg.Definitions(
         *WEATHER_NORMALIZED_CHECKS,
         *ANALYTICAL_CHECKS,
         *GERMANY_RAW_CHECKS,
+        *GERMANY_NORMALIZED_CHECKS,
     ],
     jobs=[
         OPERATIONAL_STATIC_JOB,

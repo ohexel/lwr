@@ -12,6 +12,9 @@ from pathlib import Path
 
 GERMANY_RAW_ROOT = Path("data/raw/germany")
 
+# Version tag of the normalized Germany geography (VG250 vintage).
+GEOGRAPHY_VERSION = "vg250-2022-12-31"
+
 
 @dataclass(frozen=True)
 class Vg250Contract:
