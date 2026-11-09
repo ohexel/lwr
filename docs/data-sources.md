@@ -323,8 +323,14 @@ files for total population:
 | Published Germany (`GEODL1`) total | 82,719,540 (+8,258 vs. Σ Länder) |
 
 The 8,258-person gap between the Germany total and the sum of the Länder is
-in the source itself and is not yet explained; it must be resolved or
-documented before the source-total check (M4) is finalised.
+in the source itself. Destatis' *Qualitätsbericht Zensus 2022* (20/11/2024,
+<https://www.destatis.de/DE/Methoden/Qualitaet/Qualitaetsberichte/Bevoelkerung/zensus-2022.pdf>)
+defines the population to include "die im Ausland tätigen Angehörigen der
+Bundeswehr, der Polizeibehörden und des Auswärtigen Dienstes sowie deren dort
+ansässige Familien" (section 1.1) and says register-based results contain them
+"auf Bundesebene" (section 7.2). The report does not state their number; the
+gap is consistent with this definition but not confirmed numerically. Check 3
+(`de_source_totals`) expects exactly this difference for the pinned extracts.
 
 **Sign "-".** 42 Gemeinde age-class counts (34 Gemeinden) are delivered as
 `-`; no total-population count is. The sign legend in Destatis' Zensus 2022

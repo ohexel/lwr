@@ -12,6 +12,12 @@ from src.germany.normalize import zensus_source_sha256s
 # difference is ~5e-15 (floating point). 1e-9 leaves room for rounding only.
 AREA_PARTITION_TOLERANCE = 1e-9
 MAX_LISTED = 50
+# Check 3: published Germany total minus the sum of the Länder in the pinned
+# Zensus 2022 extracts (82,719,540 - 82,711,282). Destatis' Qualitätsbericht
+# Zensus 2022 (20/11/2024, sections 1.1 and 7.2) counts Bundeswehr, police and
+# foreign-service staff working abroad, with their families, in the population
+# and includes them only at Bund level; the report does not state their number.
+EXPECTED_BUND_MINUS_LAENDER = 8_258
 
 
 @dg.asset_check(asset=NORMALIZED_DE_POPULATION_KEY, name="de_key_coverage")
@@ -87,7 +93,57 @@ def de_hierarchy_integrity() -> dg.AssetCheckResult:
     )
 
 
+@dg.asset_check(asset=NORMALIZED_DE_POPULATION_KEY, name="de_source_totals")
+def de_source_totals() -> dg.AssetCheckResult:
+    """Check 3: Gemeinde population sums equal the published Zensus totals."""
+    with database_connection(application_name="lwr_germany_check3") as connection:
+        rows = connection.execute(
+            "SELECT * FROM normalized.check_de_source_totals(%s, %s)",
+            (GEOGRAPHY_VERSION, zensus_source_sha256s()),
+        ).fetchall()
+
+    by_level: dict[str, list[tuple]] = {"krs": [], "lan": [], "sta": []}
+    for row in rows:
+        by_level.setdefault(row[0], []).append(row)
+    exact_mismatches = [
+        r for level in ("krs", "lan") for r in by_level[level] if r[5] != 0
+    ]
+    bund = by_level["sta"]
+    bund_difference = bund[0][5] if len(bund) == 1 else None
+    passed = (
+        len(by_level["krs"]) > 0
+        and len(by_level["lan"]) > 0
+        and not exact_mismatches
+        and bund_difference == EXPECTED_BUND_MINUS_LAENDER
+    )
+    return dg.AssetCheckResult(
+        passed=passed,
+        metadata={
+            "kreise_compared": len(by_level["krs"]),
+            "laender_compared": len(by_level["lan"]),
+            "kreis_land_mismatches": [
+                f"{r[0]} {r[1]} {r[2]}: Σ Gemeinden {r[3]} vs published {r[4]}"
+                for r in exact_mismatches[:MAX_LISTED]
+            ],
+            "kreis_land_mismatch_count": len(exact_mismatches),
+            "bund_gemeinde_sum": None if not bund else bund[0][3],
+            "bund_published_total": None if not bund else bund[0][4],
+            "bund_difference": bund_difference,
+            "bund_expected_difference": EXPECTED_BUND_MINUS_LAENDER,
+        },
+        description=(
+            "Σ Gemeinde population equals the published Kreis and Land totals "
+            "exactly. The published Germany total exceeds Σ Länder by the "
+            "documented 8,258 (staff of Bundeswehr, police and foreign service "
+            "abroad and their families are counted at Bund level only; "
+            "Destatis Qualitätsbericht Zensus 2022, 1.1 and 7.2); any other "
+            "difference fails."
+        ),
+    )
+
+
 GERMANY_NORMALIZED_CHECKS = [
     de_key_coverage,
     de_hierarchy_integrity,
+    de_source_totals,
 ]

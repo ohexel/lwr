@@ -1,4 +1,4 @@
-"""Germany layer, M2: normalized hierarchy, population and checks 1-2."""
+"""Germany layer, M2/M4: normalized hierarchy, population and checks 1-3."""
 
 import re
 from pathlib import Path
@@ -46,6 +46,16 @@ def test_population_null_is_never_zero() -> None:
     assert "COALESCE(census.population_total" not in sql_text
     # '-' ("Genau Null oder auf Null geändert") is the only sign mapped to 0.
     assert "WHEN raw_row.value = '-' THEN 0" in sql_text
+
+
+@pytest.mark.contract
+def test_documented_bund_gap_is_the_pinned_source_difference() -> None:
+    from src.dagster_pipeline.checks.germany_normalized import (
+        EXPECTED_BUND_MINUS_LAENDER,
+    )
+
+    # docs/data-sources.md: published Germany 82,719,540 - Σ Länder 82,711,282.
+    assert EXPECTED_BUND_MINUS_LAENDER == 82_719_540 - 82_711_282
 
 
 def test_geography_version_names_the_vg250_vintage() -> None:
@@ -198,14 +208,31 @@ def test_refresh_and_checks_classify_every_case() -> None:
             )
             assert hierarchy_issues == {("kreis_without_gemeinde", "99002")}
 
+            # Check 3: Σ Gemeinden (100 + 0; NULL populations are skipped,
+            # never counted as 0) vs. the published Kreis/Land/Bund totals.
+            totals = {
+                (level, key): (gemeinde_sum, published, difference)
+                for level, key, _, gemeinde_sum, published, difference in connection.execute(
+                    "SELECT * FROM normalized.check_de_source_totals(%s, %s)",
+                    (FIXTURE_VERSION, [FIXTURE_ZENSUS]),
+                )
+            }
+            assert totals == {
+                ("krs", "99001"): (100, 500, 400),
+                ("krs", "99002"): (None, 0, None),  # no Gemeinde with a value
+                ("lan", "99"): (100, 500, 400),
+                ("sta", "DG"): (100, 999, 899),
+            }
+
 
 @pytest.mark.integration
-def test_installed_germany_hierarchy_passes_checks_1_and_2() -> None:
+def test_installed_germany_hierarchy_passes_checks_1_to_3() -> None:
     from src.dagster_pipeline.checks.germany_normalized import (
         de_hierarchy_integrity,
         de_key_coverage,
+        de_source_totals,
     )
 
-    for check in (de_key_coverage, de_hierarchy_integrity):
+    for check in (de_key_coverage, de_hierarchy_integrity, de_source_totals):
         result = check.node_def.compute_fn.decorated_fn()
         assert result.passed, result.metadata

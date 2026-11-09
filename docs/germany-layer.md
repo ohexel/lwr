@@ -64,11 +64,26 @@ existing file retention rule.
 | --- | --- | --- | --- |
 | 1 | `de_key_coverage` | every Land/Kreis/Gemeinde key exists in VG250 and Zensus; unincorporated areas without census record listed, non-blocking | error |
 | 2 | `de_hierarchy_integrity` | parents exist, no empty parent, VG250 key parts agree, Σ Gemeinde area = Kreis area within 1e-9 (relative) | error |
-| 3 | source totals | M4 | |
+| 3 | `de_source_totals` | Σ normalized Gemeinde population = published Kreis and Land totals, exactly; published Germany total − Σ Länder = the documented 8,258, exactly | error |
 | 4 | `de_bridge_coverage` | Σ intersection / Gemeinde area within [0.999, 1] for every Gemeinde | error |
 | 5 | `de_forecast_completeness` | served run has every Gemeinde × 25 lead times | error |
 | 6 | `de_forecast_plausibility` | current run, Gemeinden and cells: no NULLs; temperature −50…+50 °C; apparent temperature −70…+60 °C | error |
 | 7 | `de_berlin_cross_layer_consistency` | Berlin's Gemeinde value vs. the area-weighted roll-up of its 542 PLRs, both from the same cell values; max difference ≤ 0.01 °C | warning |
+
+**Check 3.** Kreis and Land totals in Zensus 2022 total population are
+published without Cell Key perturbation and match the Gemeinde sums exactly,
+so the tolerance there is 0. The published Germany total (82,719,540) exceeds
+the sum of the Länder (82,711,282) by 8,258. Destatis' *Qualitätsbericht
+Zensus 2022* (published 20/11/2024; section 1.1 "Grundgesamtheit", section 7.2
+"Statistikinterne Kohärenz") counts Bundeswehr, police and foreign-service
+staff working abroad, with their families living there, as part of the
+population and states that register-based results contain them at Bund
+level. The report does not give their number, so the 8,258 is consistent with
+that definition but not confirmed against a published figure. Because the
+extracts are pinned by SHA-256, the check expects exactly this difference:
+any other value means the source changed and fails the check. Population
+weights in the roll-ups use Gemeinde values, so the Bund population in
+`de_current_bund_forecast_25h` is 82,711,282, not the published total.
 
 **Check 7.** The PLR roll-up is recomputed from the Germany cell values through
 Berlin's existing bridge (`normalized.icon_plr_area_bridge`, read-only), and

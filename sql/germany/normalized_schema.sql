@@ -480,3 +480,57 @@ CREATE OR REPLACE FUNCTION normalized.de_kreis_area_partition(
     WHERE k.geography_version = p_geography_version
     GROUP BY k.kreis_key, k.area_m2
 $$;
+
+-- ---------------------------------------------------------------------------
+-- Check 3: normalized Gemeinde population summed to Kreis, Land and Bund vs.
+-- the totals Zensus 2022 publishes for those levels (same checksum-pinned
+-- extracts). One row per published or derived region; FULL JOIN, so a
+-- region present on only one side shows up with a NULL.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION normalized.check_de_source_totals(
+    p_geography_version text,
+    p_source_sha256s text[]
+) RETURNS TABLE(
+    level text,
+    region_key text,
+    region_name text,
+    gemeinde_sum bigint,
+    published_total bigint,
+    difference bigint
+)
+    LANGUAGE sql STABLE
+    AS $$
+    WITH gem AS (
+        SELECT g.kreis_key, g.land_key, p.population_total::bigint AS population
+        FROM normalized.de_gemeinde_population AS p
+        JOIN normalized.de_gemeinde AS g
+          ON g.geography_version = p.geography_version AND g.ars = p.ars
+        WHERE p.geography_version = p_geography_version
+          AND p.population_total IS NOT NULL
+    ),
+    derived AS (
+        SELECT 'krs'::text AS level, gem.kreis_key AS region_key, SUM(gem.population)::bigint AS s
+        FROM gem GROUP BY gem.kreis_key
+        UNION ALL
+        SELECT 'lan', gem.land_key, SUM(gem.population)::bigint FROM gem GROUP BY gem.land_key
+        UNION ALL
+        SELECT 'sta', 'DG', SUM(gem.population)::bigint FROM gem  -- Zensus key of Germany
+    ),
+    published AS (
+        SELECT z.level, z.region_key, z.region_name,
+               z.population_total
+        FROM normalized.de_zensus_published_population AS z
+        WHERE z.source_sha256 = ANY (p_source_sha256s)
+          AND z.level IN ('krs', 'lan', 'sta')
+    )
+    SELECT COALESCE(p.level, d.level),
+           COALESCE(p.region_key, d.region_key),
+           p.region_name,
+           d.s,
+           p.population_total,
+           p.population_total - d.s
+    FROM published AS p
+    FULL JOIN derived AS d
+      ON d.level = p.level AND d.region_key = p.region_key
+    ORDER BY 1 DESC, 2
+$$;

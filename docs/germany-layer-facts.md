@@ -33,14 +33,15 @@ dates. Nothing here is estimated.
 | Check | Result |
 | --- | --- |
 | 4 Bridge coverage | pass; Gemeinde coverage 0.99999999999977 … 1.00000000000013, 0 exceptions |
-| 5 Forecast completeness | pass for runs 2026-11-09 16:00, 17:00, 18:00 UTC |
+| 5 Forecast completeness | pass for runs 2026-11-09 16:00, 17:00, 18:00, 19:00 UTC |
 | 6 Plausibility | pass for the same runs |
-| 7 Berlin cross-layer | pass; max difference 0.0014 °C over 75 lead times (tolerance 0.01 °C) |
+| 7 Berlin cross-layer | pass; max difference 0.0014 °C over 75 lead times of runs 16–18 UTC; run 19:00 UTC: 0.0007 °C (temperature), 0.0010 °C (apparent) (tolerance 0.01 °C) |
 | 1 Key coverage | pass; 204 non-blocking exceptions (unincorporated areas), 0 blocking |
 | 2 Hierarchy integrity | pass; 0 violations |
 | Σ Gemeinde population per Kreis = published Kreis total | 400 of 400 Kreise exact |
 | Σ Gemeinden = Σ Kreise = Σ Länder | 82,711,282 |
-| Published Germany total | 82,719,540 (+8,258 vs. Σ Länder, unexplained) |
+| Published Germany total | 82,719,540 (+8,258 vs. Σ Länder; consistent with staff abroad counted at Bund level only, number not published) |
+| 3 Source totals | pass; 400 of 400 Kreise and 16 of 16 Länder exact, Bund difference 8,258 = expected |
 
 ## Grid subset and bridge (ICON grid `icon_grid_0047_R19B07_L`)
 
@@ -98,3 +99,12 @@ results: 1.4 × 10⁻¹⁴ °C (floating-point summation order).
 | Raw load, VG250 (4 levels) + Zensus (3 extracts) | 10.4 s wall |
 | `refresh_de_hierarchy` | 11.4 s |
 | `refresh_de_population` | 1.0 s |
+
+## Tests (2026-11-09, after M4)
+
+| Suite | Result |
+| --- | ---: |
+| Default suite `uv run python -m pytest` (Berlin + Germany unit and contract) | 152 passed |
+| Germany tests incl. integration and acceptance (4 files) | 36 passed |
+| Germany acceptance tests on the installed database (run 19:00 UTC served) | 6 passed in 44 s |
+| Diff vs. `main` (lines removed from existing files) | 0 |
