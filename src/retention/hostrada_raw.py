@@ -1,7 +1,5 @@
 """Delete HOSTRADA sources only after their committed outputs pass SQL checks."""
 
-from __future__ import annotations
-
 import logging
 from dataclasses import dataclass
 

@@ -14,8 +14,6 @@ same decoded fields (open decision 2, measured on purpose):
 Stage timings land in normalized.de_aggregation_benchmark.
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from pathlib import Path
 from time import perf_counter

@@ -1,7 +1,5 @@
 """Small, explicit calendar contract for the fixed HOSTRADA reference."""
 
-from __future__ import annotations
-
 
 HOSTRADA_REFERENCE_START_YEAR = 1995
 HOSTRADA_REFERENCE_END_YEAR = 2025

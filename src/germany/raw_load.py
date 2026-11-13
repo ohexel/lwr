@@ -4,8 +4,6 @@ Each load is one transaction: rows previously loaded from the same source
 checksum are replaced, rows from other sources are never touched.
 """
 
-from __future__ import annotations
-
 import csv
 import io
 import math

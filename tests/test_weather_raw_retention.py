@@ -1,7 +1,5 @@
 """Protect the bounded, forecast-only operational retention contract."""
 
-from __future__ import annotations
-
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone

@@ -1,7 +1,5 @@
 """Verify, import, and independently validate the portable HOSTRADA snapshot."""
 
-from __future__ import annotations
-
 import argparse
 import hashlib
 import json

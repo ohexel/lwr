@@ -1,7 +1,5 @@
 """Build the normalized Germany hierarchy and population in PostGIS."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from pathlib import Path
 

@@ -1,7 +1,5 @@
 """Create and safely restore an optional offline static-source snapshot."""
 
-from __future__ import annotations
-
 import argparse
 import hashlib
 import io

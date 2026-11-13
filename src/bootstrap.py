@@ -1,7 +1,5 @@
 """Initialize an operational installation without rebuilding HOSTRADA history."""
 
-from __future__ import annotations
-
 import argparse
 import json
 import logging

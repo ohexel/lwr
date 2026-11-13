@@ -12,8 +12,6 @@ The Zensus API echoes the token in the "Username" field of JSON responses,
 so JSON bodies are redacted before they are ever shown.
 """
 
-from __future__ import annotations
-
 import argparse
 import hashlib
 import io

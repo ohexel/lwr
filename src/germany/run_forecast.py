@@ -13,8 +13,6 @@ runs checks 5-7. The Berlin pipeline and its sensor are not involved.
 Use --skip-python-benchmark to run only the canonical SQL aggregation.
 """
 
-from __future__ import annotations
-
 import argparse
 import json
 import logging

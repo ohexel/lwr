@@ -16,8 +16,6 @@ The serving web host must answer HTTP Range requests (PMTiles); the local
 preview server below does.
 """
 
-from __future__ import annotations
-
 import argparse
 from datetime import datetime, timezone
 from functools import partial

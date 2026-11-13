@@ -1,7 +1,5 @@
 """Sequentially materialize and verify one complete 25-point forecast horizon."""
 
-from __future__ import annotations
-
 import argparse
 from datetime import datetime
 import json
