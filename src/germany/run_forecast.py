@@ -9,8 +9,6 @@ Each lead time is one Dagster partition of the `germany_forecast` job
 already complete for every Gemeinde are skipped. Afterwards the
 `germany_forecast_publish` job publishes the run, applies retention and
 runs checks 5-7. The Berlin pipeline and its sensor are not involved.
-
-Use --skip-python-benchmark to run only the canonical SQL aggregation.
 """
 
 import argparse
@@ -68,17 +66,9 @@ def _execute(job_name: str, *, partition_key=None, run_config=None) -> dg.Execut
 def run_germany_forecast(
     run_time_label: str,
     *,
-    run_python_benchmark: bool = True,
     project_root: Path = PROJECT_ROOT,
 ) -> dict[str, object]:
     ensure_dagster_home(project_root)
-    run_config = {
-        "ops": {
-            "normalized__de_gemeinde_forecast": {
-                "config": {"run_python_benchmark": run_python_benchmark}
-            }
-        }
-    }
     materialized: list[str] = []
     skipped: list[str] = []
     started = perf_counter()
@@ -94,7 +84,6 @@ def run_germany_forecast(
         result = _execute(
             "germany_forecast",
             partition_key=weather_partition_key(forecast),
-            run_config=run_config,
         )
         if not result.success:
             raise RuntimeError(
@@ -130,13 +119,9 @@ def run_germany_forecast(
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--run-time", required=True, help="UTC run label, e.g. 20261109T1600")
-    parser.add_argument("--skip-python-benchmark", action="store_true")
     arguments = parser.parse_args(argv)
     logging.basicConfig(format="%(asctime)s %(levelname)s %(name)s %(message)s", level=logging.INFO)
-    result = run_germany_forecast(
-        arguments.run_time,
-        run_python_benchmark=not arguments.skip_python_benchmark,
-    )
+    result = run_germany_forecast(arguments.run_time)
     print(json.dumps(result, indent=2))
     return 0
 

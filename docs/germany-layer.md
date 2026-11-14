@@ -133,10 +133,10 @@ encoding). The page loads tiles from its own origin; the host sends no CORS
 headers, so the tiles cannot be loaded from a page on another domain. For a
 new run, re-export and upload `data/values.json` only.
 
-## SQL vs. Python aggregation (open decision 2)
+## Aggregation
 
-Both implementations run on the same decoded fields for every partition
-(`--skip-python-benchmark` turns the numpy one off). SQL is canonical and
-stored; the numpy result goes to a temporary table and is compared. Timings
-are kept in `normalized.de_aggregation_benchmark`. Results are in
-[germany-layer-facts.md](germany-layer-facts.md#sql-vs-python-aggregation).
+The cell-to-Gemeinde aggregation runs in SQL
+(`normalized.refresh_de_forecast_partition`). A numpy version was measured
+against it during development and removed afterwards; the measured comparison
+is in [germany-layer-facts.md](germany-layer-facts.md#sql-vs-python-aggregation)
+and ADR 018 (to be written in M6).

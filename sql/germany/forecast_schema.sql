@@ -77,20 +77,6 @@ CREATE TABLE IF NOT EXISTS normalized.de_gemeinde_forecast (
         REFERENCES normalized.de_gemeinde (geography_version, ars)
 );
 
--- Timings of the two aggregation implementations (open decision 2).
--- Measurements are kept beyond forecast retention; they are tiny.
-CREATE TABLE IF NOT EXISTS normalized.de_aggregation_benchmark (
-    benchmark_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    run_time_utc timestamp with time zone NOT NULL,
-    lead_time text NOT NULL,
-    method text NOT NULL CHECK (method IN ('shared', 'sql', 'python')),
-    stage text NOT NULL,
-    seconds double precision NOT NULL CHECK (seconds >= 0),
-    row_count bigint,
-    max_abs_difference_c double precision,
-    measured_at_utc timestamp with time zone DEFAULT now() NOT NULL
-);
-
 -- ---------------------------------------------------------------------------
 -- Refresh: Germany cells and bridge (static per geography and grid version)
 -- ---------------------------------------------------------------------------

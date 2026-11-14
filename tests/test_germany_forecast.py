@@ -1,16 +1,13 @@
-"""Germany layer, M3: grid subset, aggregation (SQL and numpy), checks 4-7,
-retention."""
+"""Germany layer, M3: grid subset, SQL aggregation, checks 4-7, retention."""
 
 import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import numpy as np
 import pytest
 
 from src.dagster_pipeline.assets.germany_forecast import KEEP_COMPLETE_RUNS
 from src.dagster_pipeline.checks import germany_forecast as checks
-from src.germany.forecast import GermanyBridge, apparent_temperature_shade_c
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -77,32 +74,6 @@ def test_berlin_sensor_does_not_target_germany_jobs() -> None:
 
 
 # ---------------------------------------------------------------------------
-# numpy implementation
-# ---------------------------------------------------------------------------
-def test_numpy_apparent_temperature_matches_sql_reference_value() -> None:
-    # normalized.calculate_apparent_temperature_shade_c(30, 50, 2), queried
-    # from PostgreSQL on 2026-11-09.
-    value = apparent_temperature_shade_c(
-        np.array([30.0]), np.array([50.0]), np.array([2.0])
-    )[0]
-    assert value == pytest.approx(31.57738163678242, abs=1e-12)
-
-
-def test_bridge_aggregate_is_area_weighted_and_normalized() -> None:
-    bridge = GermanyBridge(
-        cell_indices=np.array([10, 20, 30]),
-        ars=["A", "B"],
-        row_gemeinde=np.array([0, 0, 1]),
-        row_cell_position=np.array([0, 1, 2]),
-        # A: 75 % of its area in cell 10, 24.9 % in cell 20 (coverage 0.999)
-        row_fraction=np.array([0.75, 0.249, 1.0]),
-    )
-    values = bridge.aggregate(np.array([4.0, 8.0, -1.0]))
-    assert values[0] == pytest.approx((0.75 * 4 + 0.249 * 8) / 0.999)
-    assert values[1] == pytest.approx(-1.0)
-
-
-# ---------------------------------------------------------------------------
 # Integration: fixture geography inside a rolled-back transaction.
 # ---------------------------------------------------------------------------
 FIXTURE = "fixture-m3"
@@ -117,7 +88,7 @@ def _square(x: float, y: float, size: float = 1000.0) -> str:
 
 
 @pytest.mark.integration
-def test_partition_sql_matches_numpy_and_retention_keeps_two_runs() -> None:
+def test_partition_aggregation_and_retention_keeps_two_runs() -> None:
     from src.database.connection import database_connection
     from src.database.load import copy_rows
     from src.germany.forecast import apply_forecast_schema
@@ -194,7 +165,11 @@ def test_partition_sql_matches_numpy_and_retention_keeps_two_runs() -> None:
                 load_run(run_time, 25)
             load_run(runs[3], 3)  # newer run still loading
 
-            # SQL result equals the numpy implementation of the same formula.
+            # Gemeinde values: A = cell 1, B = mean of cells 2 and 3. Expected
+            # values are hand-computed from the formula
+            # T + 0.33 e - 0.70 v - 4.00 with e = RH/100 * 6.105 * exp(17.27 T / (237.7 + T));
+            # they equal normalized.calculate_apparent_temperature_shade_c(20, 50, 5) and
+            # the mean of (10, 80, 1) and (15, 60, 1), queried on 2026-11-14.
             sql_values = dict(
                 connection.execute(
                     "SELECT ars, apparent_temperature_shade_c FROM normalized.de_gemeinde_forecast "
@@ -202,12 +177,8 @@ def test_partition_sql_matches_numpy_and_retention_keeps_two_runs() -> None:
                     (FIXTURE, runs[0]),
                 ).fetchall()
             )
-            t, rh, u, v = (np.array([stage[c][i] for c in (1, 2, 3)]) for i in range(4))
-            cell_a = apparent_temperature_shade_c(t - 273.15, rh, np.hypot(u, v))
-            assert sql_values["990010000001"] == pytest.approx(cell_a[0], abs=1e-12)
-            assert sql_values["990010000002"] == pytest.approx(
-                (cell_a[1] + cell_a[2]) / 2, abs=1e-12
-            )
+            assert sql_values["990010000001"] == pytest.approx(16.348242312858147, abs=1e-12)
+            assert sql_values["990010000002"] == pytest.approx(11.103011743711562, abs=1e-12)
 
             current = connection.execute(
                 "SELECT run_time_utc FROM normalized.de_forecast_run_completeness "

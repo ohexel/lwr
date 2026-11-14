@@ -59,11 +59,6 @@ def normalized_de_icon_gemeinde_bridge(context: dg.AssetExecutionContext) -> Non
     )
 
 
-class GermanyForecastConfig(dg.Config):
-    # Open decision 2: also run the numpy implementation and record timings.
-    run_python_benchmark: bool = True
-
-
 @dg.asset(
     key=NORMALIZED_DE_GEMEINDE_FORECAST_KEY,
     partitions_def=WEATHER_PARTITIONS,
@@ -72,16 +67,12 @@ class GermanyForecastConfig(dg.Config):
     description=(
         "Per-cell temperature and shade apparent temperature for all Germany "
         "cells and their area-weighted Gemeinde values for one forecast "
-        "partition (SQL, canonical); optional numpy benchmark of the same "
-        "aggregation."
+        "partition (SQL)."
     ),
 )
-def normalized_de_gemeinde_forecast(
-    context: dg.AssetExecutionContext,
-    config: GermanyForecastConfig,
-) -> None:
+def normalized_de_gemeinde_forecast(context: dg.AssetExecutionContext) -> None:
     forecast = forecast_key_from_partition(context.partition_key)
-    result = process_partition(forecast, run_python=config.run_python_benchmark)
+    result = process_partition(forecast)
     metadata = {key: value for key, value in asdict(result).items() if key != "timings"}
     metadata.update({f"seconds_{key}": round(value, 4) for key, value in result.timings.items()})
     context.add_output_metadata(metadata)
