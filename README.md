@@ -323,10 +323,13 @@ results against the sources, and shows them on a static MapLibre map. Berlin
 tables, views, the sensor and the Berlin dashboard are unchanged; Germany
 objects carry the prefix `de_`.
 
-![Germany map, Kreise: maximum shade apparent temperature in the next 24 hours, area-weighted. Forecast run 2026-11-14 09:00 UTC.](docs/images/germany-map.png)
+![Germany map, Kreise: highest shade apparent temperature in the next 24 hours, area-weighted, on a fixed scale from -20 to +30 °C. Forecast run 2026-11-14 09:00 UTC.](docs/images/germany-map.png)
 
-*Maximum shade apparent temperature over the next 24 hours by Kreis,
-area-weighted (forecast run 2026-11-14 09:00 UTC).*
+*Highest shade apparent temperature over the next 24 hours by Kreis,
+area-weighted (forecast run 2026-11-14 09:00 UTC). The page is in German; a
+switch shows the lowest values instead (Höchstwerte / Tiefstwerte). The colour
+scale is fixed from -20 to +30 °C, so a colour means the same temperature on
+every day.*
 
 ### Run it
 

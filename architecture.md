@@ -287,7 +287,8 @@ objects. Operation and measurements are in
 
 Kreis, Land and Bund values are rolled up from Gemeinden with an area and a
 population weighting (ADR 015). The `_summary` views hold the 24-hour maximum
-of each measure and its time, with one rule for all four levels. The
+and minimum of each measure and its time, with one rule for all four levels
+(highest or lowest value, earliest time on a tie). The
 `de_current_*` views show the newest run in which every Gemeinde has all 25
 lead times, the same switching rule as Berlin's 25-hour views.
 
@@ -319,8 +320,10 @@ checksums and counts.
 `python -m src.export_germany_dashboard` writes a static folder in
 `web/germany-dashboard/`: a PMTiles archive of Land, Kreis and Gemeinde
 outlines (built once per geography version) and one `values.json` per run,
-joined in the browser by regional key (ADR 016). The host must answer HTTP
-Range requests; the local preview (`src/germany/preview_server.py`) does.
+joined in the browser by regional key (ADR 016). The page is in German and
+switches between the 24-hour maxima and minima on a fixed colour scale from
+-20 to +30 °C. The host must answer HTTP Range requests; the local preview
+(`src/germany/preview_server.py`) does.
 
 ### Things to know
 
