@@ -58,8 +58,11 @@ Separate geometry from values:
   same run) but not the transfer size: the gzipped file is 289,187 bytes
   against 320,873. Readability was the reason for the change; the transfer
   cost did not rise.
-- The 24-hour maxima shown on the map are read from the SQL summary views,
-  not computed in the export, so analysts and the map use the same rule.
+- The 24-hour maxima and minima shown on the map are read from the SQL
+  summary views, not computed in the export, so analysts and the map use the
+  same rule. The minima (for the Höchst-/Tiefstwerte switch, added
+  2026-11-14) raise `values.json` for the run 2026-11-14 09:00 UTC from
+  3,511,495 to 5,259,646 bytes, and from 281,537 to 395,044 bytes gzipped.
 - Features of the first version were removed to keep the page explainable:
   there is no search field. Hover, click-to-pin (the only way to read a value
   on a touch screen), the level switch and the weighting switch remain.

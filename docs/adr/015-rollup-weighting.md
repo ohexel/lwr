@@ -43,8 +43,9 @@ scores (the README's "Scope and data interpretation").
 Each roll-up view carries four value columns instead of two (temperature and
 apparent temperature, each by area and by population), and the three views
 (`de_current_{kreis,land,bund}_forecast_25h`) repeat the same pattern. The
-24-hour maxima views (`de_current_{kreis,land,bund}_summary`) follow the same
-four columns.
+24-hour summary views (`de_current_{kreis,land,bund}_summary`) follow the same
+four columns, once for the maximum and once for the minimum (added
+2026-11-14).
 
 The difference is real but varies with the weather. Measured examples:
 

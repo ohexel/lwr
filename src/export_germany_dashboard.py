@@ -72,10 +72,43 @@ FROM analytical.de_current_bund_forecast_25h
 ORDER BY lead_hour
 """
 
+# 24-hour extremes served to the map: the maximum and the minimum of each
+# measure, with the lead hour of its first occurrence.
+EXTREMES = ("max", "min")
+GEMEINDE_MEASURES = ("temperature", "apparent_temperature_shade")
+WEIGHTED_MEASURES = (
+    "temperature_area_weighted",
+    "temperature_population_weighted",
+    "apparent_temperature_shade_area_weighted",
+    "apparent_temperature_shade_population_weighted",
+)
+# Order of the (value, lead hour) pairs in SUMMARY_QUERIES and of the
+# (value, time) pairs in GEMEINDE_QUERY.
+SUMMARY_FIELDS = tuple(f"{e}_{m}_c" for e in EXTREMES for m in WEIGHTED_MEASURES)
+GEMEINDE_FIELDS = tuple(f"{e}_{m}_c" for e in EXTREMES for m in GEMEINDE_MEASURES)
+BUND_FIELDS = tuple(
+    f"{e}_apparent_temperature_shade_{w}_weighted_c"
+    for e in EXTREMES for w in ("area", "population")
+)
+
+
+def lead_hour_key(value_key: str) -> str:
+    """Key of the lead hour that belongs to an extreme, e.g.
+    max_temperature_area_weighted_c -> max_temperature_area_weighted_lead_hour."""
+    return value_key.removesuffix("_c") + "_lead_hour"
+
+
+def _time_key(value_key: str) -> str:
+    return value_key.removesuffix("_c") + "_at_berlin"
+
+
+_SUMMARY_COLUMNS = ",\n               ".join(
+    f"{field}, {lead_hour_key(field)}" for field in SUMMARY_FIELDS
+)
+
 GEMEINDE_QUERY = """
 SELECT s.ars, s.gemeinde_name, s.kreis_key, s.land_key,
-       s.max_temperature_c, s.max_temperature_at_berlin,
-       s.max_apparent_temperature_shade_c, s.max_apparent_temperature_shade_at_berlin,
+       """ + ", ".join(f"s.{f}, s.{_time_key(f)}" for f in GEMEINDE_FIELDS) + """,
        s.population_total, s.population_status, g.gemeinde_type
 FROM analytical.de_current_gemeinde_summary AS s
 JOIN normalized.de_gemeinde AS g
@@ -87,30 +120,25 @@ ORDER BY s.ars
 SUMMARY_QUERIES = {
     "krs": """
         SELECT kreis_key, kreis_name, land_key, lead_time_count,
-               max_temperature_area_weighted_c, max_temperature_area_weighted_lead_hour,
-               max_temperature_population_weighted_c, max_temperature_population_weighted_lead_hour,
-               max_apparent_temperature_shade_area_weighted_c, max_apparent_temperature_shade_area_weighted_lead_hour,
-               max_apparent_temperature_shade_population_weighted_c, max_apparent_temperature_shade_population_weighted_lead_hour,
+               """ + _SUMMARY_COLUMNS + """,
                population_total, gemeinde_count
         FROM analytical.de_current_kreis_summary
         ORDER BY kreis_key
     """,
     "lan": """
         SELECT land_key, land_name, NULL::text, lead_time_count,
-               max_temperature_area_weighted_c, max_temperature_area_weighted_lead_hour,
-               max_temperature_population_weighted_c, max_temperature_population_weighted_lead_hour,
-               max_apparent_temperature_shade_area_weighted_c, max_apparent_temperature_shade_area_weighted_lead_hour,
-               max_apparent_temperature_shade_population_weighted_c, max_apparent_temperature_shade_population_weighted_lead_hour,
+               """ + _SUMMARY_COLUMNS + """,
                population_total, gemeinde_count
         FROM analytical.de_current_land_summary
         ORDER BY land_key
     """,
 }
 
-BUND_QUERY = """
-SELECT max_apparent_temperature_shade_area_weighted_c, max_apparent_temperature_shade_area_weighted_lead_hour, max_apparent_temperature_shade_population_weighted_c, max_apparent_temperature_shade_population_weighted_lead_hour
-FROM analytical.de_current_bund_summary
-"""
+BUND_QUERY = (
+    "SELECT "
+    + ", ".join(f"{field}, {lead_hour_key(field)}" for field in BUND_FIELDS)
+    + " FROM analytical.de_current_bund_summary"
+)
 
 KREIS_TYPE_QUERY = """
 SELECT kreis_key, kreis_type FROM normalized.de_kreis WHERE geography_version = %s
@@ -132,23 +160,8 @@ def _berlin_label(value: datetime) -> str:
     return value.strftime("%Y-%m-%dT%H:%M")
 
 
-# Order of the measures in SUMMARY_QUERIES (value, lead hour) pairs.
-SUMMARY_FIELDS = (
-    "max_temperature_area_weighted_c",
-    "max_temperature_population_weighted_c",
-    "max_apparent_temperature_shade_area_weighted_c",
-    "max_apparent_temperature_shade_population_weighted_c",
-)
-
-
-def lead_hour_key(value_key: str) -> str:
-    """Key of the lead hour that belongs to a maximum, e.g.
-    max_temperature_area_weighted_c -> max_temperature_area_weighted_lead_hour."""
-    return value_key.removesuffix("_c") + "_lead_hour"
-
-
 def summary_records(rows: list[tuple]) -> dict[str, dict[str, object]]:
-    """Per region: 24-hour maxima (and their lead hour) of both weightings,
+    """Per region: 24-hour maxima and minima (and their lead hour) of both weightings,
     as computed by the analytical.de_current_*_summary views."""
     records: dict[str, dict[str, object]] = {}
     for key, name, parent, lead_count, *rest in rows:
@@ -193,25 +206,21 @@ def collect_values(connection: psycopg.Connection) -> dict[str, object]:
     hour_of = {label: index for index, label in enumerate(berlin_times)}
 
     gemeinden: dict[str, dict[str, object]] = {}
-    for (ars, name, kreis, land, t_max, t_at, a_max, a_at, population,
-         status, bez) in connection.execute(GEMEINDE_QUERY):
-        t_label, a_label = _berlin_label(t_at), _berlin_label(a_at)
-        if t_label not in hour_of or a_label not in hour_of:
-            raise ValueError(f"{ars}: time of maximum is outside the run")
-        if t_max is None or a_max is None:
-            raise ValueError(f"{ars}: missing forecast maximum")
-        gemeinden[ars] = {
-            "name": name,
-            "kreis_key": kreis,
-            "land_key": land,
-            "max_temperature_c": _round(t_max),
-            "max_temperature_lead_hour": hour_of[t_label],
-            "max_apparent_temperature_shade_c": _round(a_max),
-            "max_apparent_temperature_shade_lead_hour": hour_of[a_label],
-            "population_total": population,
-            "population_status": status,
-            "gemeinde_type": bez,
-        }
+    for ars, name, kreis, land, *rest in connection.execute(GEMEINDE_QUERY):
+        extremes, (population, status, bez) = rest[:-3], rest[-3:]
+        record: dict[str, object] = {"name": name, "kreis_key": kreis, "land_key": land}
+        for field, value, at in zip(GEMEINDE_FIELDS, extremes[0::2], extremes[1::2]):
+            if value is None or at is None:
+                raise ValueError(f"{ars}: missing {field}")
+            label = _berlin_label(at)
+            if label not in hour_of:
+                raise ValueError(f"{ars}: time of {field} is outside the run")
+            record[field] = _round(value)
+            record[lead_hour_key(field)] = hour_of[label]
+        record.update(
+            population_total=population, population_status=status, gemeinde_type=bez
+        )
+        gemeinden[ars] = record
 
     kreise = summary_records(connection.execute(SUMMARY_QUERIES["krs"]).fetchall())
     for key, kreis_type in connection.execute(KREIS_TYPE_QUERY, (geography_version,)):
@@ -226,9 +235,14 @@ def collect_values(connection: psycopg.Connection) -> dict[str, object]:
                 f"{level}: {len(records)} regions, expected {EXPECTED_COUNTS[level]}"
             )
 
-    bund_a_area, bund_a_area_h, bund_a_pop, bund_a_pop_h = connection.execute(
-        BUND_QUERY
-    ).fetchone()
+    bund_row = connection.execute(BUND_QUERY).fetchone()
+    bund: dict[str, object] = {}
+    for field, value, hour in zip(BUND_FIELDS, bund_row[0::2], bund_row[1::2]):
+        if value is None:
+            raise ValueError(f"Bund: missing {field}")
+        bund[field] = _round(value)
+        bund[lead_hour_key(field)] = int(hour)
+    bund["population_total"] = leads[0][7]
     all_apparent = [r["max_apparent_temperature_shade_c"] for r in gemeinden.values()]
     return {
         "schema": 2,
@@ -241,13 +255,7 @@ def collect_values(connection: psycopg.Connection) -> dict[str, object]:
         "apparent_range_c": [
             math.floor(min(all_apparent)), math.ceil(max(all_apparent))
         ],
-        "bund": {
-            "max_apparent_temperature_shade_area_weighted_c": _round(bund_a_area),
-            "max_apparent_temperature_shade_area_weighted_lead_hour": int(bund_a_area_h),
-            "max_apparent_temperature_shade_population_weighted_c": _round(bund_a_pop),
-            "max_apparent_temperature_shade_population_weighted_lead_hour": int(bund_a_pop_h),
-            "population_total": leads[0][7],
-        },
+        "bund": bund,
         "lan": laender,
         "krs": kreise,
         "gem": gemeinden,

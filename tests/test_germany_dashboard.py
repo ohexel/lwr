@@ -11,13 +11,48 @@ import urllib.request
 import pytest
 
 from src.export_germany_dashboard import (
+    BUND_QUERY,
     DASHBOARD_SOURCE,
+    EXPECTED_LEAD_COUNT,
+    GEMEINDE_QUERY,
     PUBLIC_ASSETS,
+    SUMMARY_FIELDS,
+    SUMMARY_QUERIES,
+    summary_records,
 )
 from src.germany.preview_server import RangeRequestHandler, parse_range
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+# ---------------------------------------------------------------------------
+# Values export: maxima and minima for the Höchst-/Tiefstwerte switch
+# ---------------------------------------------------------------------------
+def test_export_queries_select_maxima_and_minima_with_their_time() -> None:
+    for extreme in ("max", "min"):
+        for measure in ("temperature", "apparent_temperature_shade"):
+            assert f"s.{extreme}_{measure}_c, s.{extreme}_{measure}_at_berlin" in GEMEINDE_QUERY
+        for weighting in ("area", "population"):
+            field = f"{extreme}_apparent_temperature_shade_{weighting}_weighted_c"
+            assert f"{field}, {field.removesuffix('_c')}_lead_hour" in BUND_QUERY
+    assert len(SUMMARY_FIELDS) == 8
+    for query in SUMMARY_QUERIES.values():
+        for field in SUMMARY_FIELDS:
+            assert f"{field}, {field.removesuffix('_c')}_lead_hour" in query
+
+
+def test_summary_records_keeps_maxima_and_minima_apart() -> None:
+    pairs = []
+    for index, _field in enumerate(SUMMARY_FIELDS):
+        pairs += [float(index), index]  # value, lead hour
+    rows = [("01001", "Flensburg", "01", EXPECTED_LEAD_COUNT, *pairs, 95015, 1)]
+    record = summary_records(rows)["01001"]
+    for index, field in enumerate(SUMMARY_FIELDS):
+        assert record[field] == float(index)
+        assert record[field.removesuffix("_c") + "_lead_hour"] == index
+    assert record["min_temperature_area_weighted_c"] == 4.0
+    assert (record["population_total"], record["gemeinde_count"]) == (95015, 1)
 
 
 # ---------------------------------------------------------------------------

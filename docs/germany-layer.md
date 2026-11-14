@@ -35,7 +35,7 @@ Germany jobs and stays stopped by default.
 | Bridge | `normalized.de_icon_cell_gemeinde_bridge` | intersection area and `fraction_of_gemeinde`, versioned by geography and grid |
 | Cell forecast | `normalized.de_forecast_run`, `normalized.de_icon_cell_value` | one row per run (geography version, grid) and one row per run, lead hour and cell: temperature and shade apparent temperature, computed with Berlin's units and `normalized.calculate_apparent_temperature_shade_c`; lead-time label and valid time are derived from the lead hour |
 | Gemeinde forecast | `normalized.de_gemeinde_forecast` | area-weighted from cells, like Berlin's PLR values |
-| Serving | `analytical.de_current_{gemeinde,kreis,land,bund}_forecast_25h`, `analytical.de_current_{gemeinde,kreis,land,bund}_summary` | newest run with every Gemeinde × 25 lead times; the summaries hold the 24-hour maximum of each measure with its time (one rule for all four levels: highest value, earliest time on a tie) |
+| Serving | `analytical.de_current_{gemeinde,kreis,land,bund}_forecast_25h`, `analytical.de_current_{gemeinde,kreis,land,bund}_summary` | newest run with every Gemeinde × 25 lead times; the summaries hold the 24-hour maximum (`max_`) and minimum (`min_`) of each measure with its time (one rule for all four levels: highest or lowest value, earliest time on a tie; the `min_` columns are appended at the end of each view so `CREATE OR REPLACE VIEW` works on an installed database) |
 
 Kreis, Land and Bund values are served twice: weighted by Gemeinde area (equal
 to direct area weighting, because Gemeinden partition their Kreis in VG250)
@@ -104,7 +104,7 @@ uv run --env-file .env python -m src.export_germany_dashboard --serve
 | File in `web/germany-dashboard/data/` | Content | Rebuilt |
 | --- | --- | --- |
 | `vg250-2022-12-31.pmtiles` | Land, Kreis and Gemeinde outlines, zoom 4-10, property `key` = regional key only | once per geography version, or with `--rebuild-tiles` (needs `tippecanoe`) |
-| `values.json` | schema 2, current complete run: per region the 24-hour maximum of shade apparent temperature and air temperature with its lead hour (an index into `valid_times_berlin`; read from the `de_current_*_summary` views), residents, names. Keys are descriptive, e.g. `max_apparent_temperature_shade_population_weighted_c` | every export |
+| `values.json` | schema 2, current complete run: per region the 24-hour maximum and minimum of shade apparent temperature and air temperature with its lead hour (an index into `valid_times_berlin`; read from the `de_current_*_summary` views), residents, names. Keys are descriptive, e.g. `max_apparent_temperature_shade_population_weighted_c`, `min_temperature_c`. The `min_` keys were added without a schema change (still 2): the page enables Tiefstwerte only when they are present | every export |
 
 Generated files are git-ignored. The page joins values to outlines with
 MapLibre feature-state (`promoteId: "key"`), so tiles are never rebuilt per run.
@@ -116,7 +116,8 @@ next 24 hours at Land, Kreis or Gemeinde level (radio buttons, keyboard
 operable). A switch chooses Höchstwerte or Tiefstwerte; the page reads
 `min_<measure>_c` / `min_<measure>_<area|population>_weighted_c` (and the
 matching `_lead_hour`) from `values.json`, the same naming as the `max_` keys.
-Until the export provides them the Tiefstwerte option is disabled with a note.
+A `values.json` from an older export has no `min_` keys; the page then
+disables the Tiefstwerte option and says so.
 Kreis and Land values switch between area- and
 population-weighted roll-ups. Hover or click shows name, parents, the
 extreme with its time (Europe/Berlin), the extreme air temperature and residents; a click

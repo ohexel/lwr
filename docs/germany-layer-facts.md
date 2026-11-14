@@ -171,6 +171,8 @@ Retained runs after publish: 2026-11-09 19:00 UTC and 2026-11-14 09:00 UTC (the
 | `vg250-2022-12-31.pmtiles` | 13,139,513 bytes |
 | `values.json`, schema 2 | 3,511,495 bytes; 281,537 gzip-compressed |
 | `values.json`, schema 1, run 2026-11-09 19:00 UTC | 1,765,099 bytes; 320,873 gzip-compressed |
+| `values.json`, schema 2 with 24-hour minima added (same run, re-exported 2026-11-14 18:24) | 5,259,646 bytes; 395,044 gzip-compressed |
+| Export of values only, with minima (tiles exist) | 26.2 s |
 | Headless Chromium at 1400 × 900 and 390 × 844: tooltip, details at Land / Kreis / Gemeinde, both weightings | works |
 | Console and page errors | 0 |
 | Horizontal overflow at 390 px | none |

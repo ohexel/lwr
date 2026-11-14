@@ -28,7 +28,9 @@ The Berlin pipeline, its views, sensor, tests and dashboard are unchanged
   `python -m src.germany.run_forecast --run-time …`,
   `python -m src.export_germany_dashboard --serve`.
 - **Map:** `web/germany-dashboard/`, MapLibre with PMTiles outlines and a JSON
-  values file; no basemap and no API key.
+  values file; no basemap and no API key. German user interface, a switch
+  between 24-hour maxima and minima, and a fixed colour scale from -20 to
+  +30 °C.
 - **Decisions:** ADRs 014–018 in `docs/adr/`.
 
 ## Verified (14 Nov 2026)
@@ -71,6 +73,31 @@ verification are below.
   Before, a second static run would have failed on an installed database
   because forecasts and the bridge reference the Gemeinden.
 
+## Changes after the verification of 14 Nov
+
+- **24-hour minima.** The four summary views
+  `de_current_{gemeinde,kreis,land,bund}_summary` also hold the minimum of
+  each measure with its time and lead hour (`min_` columns, same rule as the
+  maxima: lowest value, earliest time on a tie). The columns are appended at
+  the end of each view, so the schema re-applies to an installed database
+  without dropping anything.
+- `values.json` carries the minima as `min_…_c` and `min_…_lead_hour` keys next
+  to the `max_` keys (schema still 2; the keys are additions only). For the run
+  2026-11-14 09:00 UTC the file grew from 3,511,495 to 5,259,646 bytes (from
+  281,537 to 395,044 bytes gzipped); an export of the values takes 26.2 s.
+- **Map.** All user-facing text is German; the page title is "Deutschland:
+  Höchst- und Tiefsttemperaturen über die nächsten 24 Stunden". A switch
+  chooses Höchstwerte or Tiefstwerte; with a `values.json` without minima the
+  Tiefstwerte option is disabled. The colour scale is fixed and runs from cool
+  to warm over -20 to +30 °C instead of being fitted to each run, so a cold
+  day is shown in blue, not orange-red, and a colour means the same
+  temperature on every day (ADR 016).
+- Verified on the same run: default suite 171 passed, Germany integration
+  tests 5 passed, Germany acceptance tests 21 passed (14 new: the maxima and
+  minima of every measure at all four levels are recomputed with plain
+  `MAX`/`MIN` and compared with the views). Map in headless Chromium at 1400 px
+  and 390 px: switch works, no console errors, no horizontal overflow.
+
 ## Limitations
 
 - Forecast only. There is no Germany-wide historical reference.
@@ -87,7 +114,9 @@ verification are below.
   will be regenerated after the code freeze.
 - Open decision (ADR 018): whether to keep per-cell values, which cost 588 MB
   for two runs, against the checks that need them.
-- The aggregation tie rule for the 24-hour maximum (earliest hour wins) is
-  implemented in SQL and has no test of its own.
+- The aggregation tie rule for the 24-hour maximum and minimum (earliest hour
+  wins) is implemented in SQL. The acceptance tests compare it with a plain
+  recomputation on real data, where ties are unlikely; a test with a
+  constructed tie is still missing.
 - Candidate next theme: employees and establishments per Gemeinde from the
   Bundesagentur für Arbeit.

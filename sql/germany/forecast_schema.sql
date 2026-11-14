@@ -426,7 +426,15 @@ WITH ranked AS (
         ROW_NUMBER() OVER (
             PARTITION BY f.ars
             ORDER BY f.apparent_temperature_shade_c DESC, f.valid_time_utc
-        ) AS apparent_rank
+        ) AS apparent_rank,
+        ROW_NUMBER() OVER (
+            PARTITION BY f.ars
+            ORDER BY f.temperature_c ASC NULLS LAST, f.valid_time_utc
+        ) AS temperature_min_rank,
+        ROW_NUMBER() OVER (
+            PARTITION BY f.ars
+            ORDER BY f.apparent_temperature_shade_c ASC NULLS LAST, f.valid_time_utc
+        ) AS apparent_min_rank
     FROM analytical.de_current_gemeinde_forecast_25h AS f
 )
 SELECT
@@ -444,16 +452,25 @@ SELECT
     a.apparent_temperature_shade_c AS max_apparent_temperature_shade_c,
     a.valid_time_berlin AS max_apparent_temperature_shade_at_berlin,
     t.population_total,
-    t.population_status
+    t.population_status,
+    -- 24-hour minima, appended so CREATE OR REPLACE VIEW keeps working on an
+    -- installed database (existing columns must keep their position).
+    tn.temperature_c AS min_temperature_c,
+    tn.valid_time_berlin AS min_temperature_at_berlin,
+    an.apparent_temperature_shade_c AS min_apparent_temperature_shade_c,
+    an.valid_time_berlin AS min_apparent_temperature_shade_at_berlin
 FROM ranked AS t
 JOIN ranked AS a ON a.ars = t.ars AND a.apparent_rank = 1
+JOIN ranked AS tn ON tn.ars = t.ars AND tn.temperature_min_rank = 1
+JOIN ranked AS an ON an.ars = t.ars AND an.apparent_min_rank = 1
 WHERE t.temperature_rank = 1;
 
 -- ---------------------------------------------------------------------------
--- Kreis, Land and Bund summaries: 24-hour maximum of each served measure, the
--- Berlin time and the lead hour of its first occurrence (same rule as the
--- Gemeinde summary: highest value, earliest time on a tie; NULL when the
--- measure is NULL in every lead hour).
+-- Kreis, Land and Bund summaries: 24-hour maximum and minimum of each served
+-- measure, the Berlin time and the lead hour of its first occurrence (same
+-- rule as the Gemeinde summary: highest or lowest value, earliest time on a
+-- tie; NULL when the measure is NULL in every lead hour). The min_ columns
+-- come last so CREATE OR REPLACE VIEW works on an installed database.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE VIEW analytical.de_current_kreis_summary AS
 WITH ranked AS (
@@ -466,7 +483,15 @@ WITH ranked AS (
         ROW_NUMBER() OVER (PARTITION BY k.kreis_key
             ORDER BY k.apparent_temperature_shade_area_weighted_c DESC NULLS LAST, k.valid_time_utc) AS a_area_rank,
         ROW_NUMBER() OVER (PARTITION BY k.kreis_key
-            ORDER BY k.apparent_temperature_shade_population_weighted_c DESC NULLS LAST, k.valid_time_utc) AS a_pop_rank
+            ORDER BY k.apparent_temperature_shade_population_weighted_c DESC NULLS LAST, k.valid_time_utc) AS a_pop_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.kreis_key
+            ORDER BY k.temperature_area_weighted_c ASC NULLS LAST, k.valid_time_utc) AS t_area_min_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.kreis_key
+            ORDER BY k.temperature_population_weighted_c ASC NULLS LAST, k.valid_time_utc) AS t_pop_min_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.kreis_key
+            ORDER BY k.apparent_temperature_shade_area_weighted_c ASC NULLS LAST, k.valid_time_utc) AS a_area_min_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.kreis_key
+            ORDER BY k.apparent_temperature_shade_population_weighted_c ASC NULLS LAST, k.valid_time_utc) AS a_pop_min_rank
     FROM analytical.de_current_kreis_forecast_25h AS k
 )
 SELECT
@@ -509,7 +534,39 @@ SELECT
         AS max_apparent_temperature_shade_population_weighted_lead_hour,
     MIN(r.population_total) AS population_total,
     MIN(r.gemeinde_count) AS gemeinde_count,
-    COUNT(*) AS lead_time_count
+    COUNT(*) AS lead_time_count,
+    MIN(r.temperature_area_weighted_c) FILTER (WHERE r.t_area_min_rank = 1)
+        AS min_temperature_area_weighted_c,
+    MIN(r.valid_time_berlin) FILTER (
+        WHERE r.t_area_min_rank = 1 AND r.temperature_area_weighted_c IS NOT NULL)
+        AS min_temperature_area_weighted_at_berlin,
+    MIN(r.lead_hour) FILTER (
+        WHERE r.t_area_min_rank = 1 AND r.temperature_area_weighted_c IS NOT NULL)
+        AS min_temperature_area_weighted_lead_hour,
+    MIN(r.temperature_population_weighted_c) FILTER (WHERE r.t_pop_min_rank = 1)
+        AS min_temperature_population_weighted_c,
+    MIN(r.valid_time_berlin) FILTER (
+        WHERE r.t_pop_min_rank = 1 AND r.temperature_population_weighted_c IS NOT NULL)
+        AS min_temperature_population_weighted_at_berlin,
+    MIN(r.lead_hour) FILTER (
+        WHERE r.t_pop_min_rank = 1 AND r.temperature_population_weighted_c IS NOT NULL)
+        AS min_temperature_population_weighted_lead_hour,
+    MIN(r.apparent_temperature_shade_area_weighted_c) FILTER (WHERE r.a_area_min_rank = 1)
+        AS min_apparent_temperature_shade_area_weighted_c,
+    MIN(r.valid_time_berlin) FILTER (
+        WHERE r.a_area_min_rank = 1 AND r.apparent_temperature_shade_area_weighted_c IS NOT NULL)
+        AS min_apparent_temperature_shade_area_weighted_at_berlin,
+    MIN(r.lead_hour) FILTER (
+        WHERE r.a_area_min_rank = 1 AND r.apparent_temperature_shade_area_weighted_c IS NOT NULL)
+        AS min_apparent_temperature_shade_area_weighted_lead_hour,
+    MIN(r.apparent_temperature_shade_population_weighted_c) FILTER (WHERE r.a_pop_min_rank = 1)
+        AS min_apparent_temperature_shade_population_weighted_c,
+    MIN(r.valid_time_berlin) FILTER (
+        WHERE r.a_pop_min_rank = 1 AND r.apparent_temperature_shade_population_weighted_c IS NOT NULL)
+        AS min_apparent_temperature_shade_population_weighted_at_berlin,
+    MIN(r.lead_hour) FILTER (
+        WHERE r.a_pop_min_rank = 1 AND r.apparent_temperature_shade_population_weighted_c IS NOT NULL)
+        AS min_apparent_temperature_shade_population_weighted_lead_hour
 FROM ranked AS r
 GROUP BY r.kreis_key;
 
@@ -524,7 +581,15 @@ WITH ranked AS (
         ROW_NUMBER() OVER (PARTITION BY k.land_key
             ORDER BY k.apparent_temperature_shade_area_weighted_c DESC NULLS LAST, k.valid_time_utc) AS a_area_rank,
         ROW_NUMBER() OVER (PARTITION BY k.land_key
-            ORDER BY k.apparent_temperature_shade_population_weighted_c DESC NULLS LAST, k.valid_time_utc) AS a_pop_rank
+            ORDER BY k.apparent_temperature_shade_population_weighted_c DESC NULLS LAST, k.valid_time_utc) AS a_pop_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.land_key
+            ORDER BY k.temperature_area_weighted_c ASC NULLS LAST, k.valid_time_utc) AS t_area_min_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.land_key
+            ORDER BY k.temperature_population_weighted_c ASC NULLS LAST, k.valid_time_utc) AS t_pop_min_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.land_key
+            ORDER BY k.apparent_temperature_shade_area_weighted_c ASC NULLS LAST, k.valid_time_utc) AS a_area_min_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.land_key
+            ORDER BY k.apparent_temperature_shade_population_weighted_c ASC NULLS LAST, k.valid_time_utc) AS a_pop_min_rank
     FROM analytical.de_current_land_forecast_25h AS k
 )
 SELECT
@@ -565,7 +630,39 @@ SELECT
         AS max_apparent_temperature_shade_population_weighted_lead_hour,
     MIN(r.population_total) AS population_total,
     MIN(r.gemeinde_count) AS gemeinde_count,
-    COUNT(*) AS lead_time_count
+    COUNT(*) AS lead_time_count,
+    MIN(r.temperature_area_weighted_c) FILTER (WHERE r.t_area_min_rank = 1)
+        AS min_temperature_area_weighted_c,
+    MIN(r.valid_time_berlin) FILTER (
+        WHERE r.t_area_min_rank = 1 AND r.temperature_area_weighted_c IS NOT NULL)
+        AS min_temperature_area_weighted_at_berlin,
+    MIN(r.lead_hour) FILTER (
+        WHERE r.t_area_min_rank = 1 AND r.temperature_area_weighted_c IS NOT NULL)
+        AS min_temperature_area_weighted_lead_hour,
+    MIN(r.temperature_population_weighted_c) FILTER (WHERE r.t_pop_min_rank = 1)
+        AS min_temperature_population_weighted_c,
+    MIN(r.valid_time_berlin) FILTER (
+        WHERE r.t_pop_min_rank = 1 AND r.temperature_population_weighted_c IS NOT NULL)
+        AS min_temperature_population_weighted_at_berlin,
+    MIN(r.lead_hour) FILTER (
+        WHERE r.t_pop_min_rank = 1 AND r.temperature_population_weighted_c IS NOT NULL)
+        AS min_temperature_population_weighted_lead_hour,
+    MIN(r.apparent_temperature_shade_area_weighted_c) FILTER (WHERE r.a_area_min_rank = 1)
+        AS min_apparent_temperature_shade_area_weighted_c,
+    MIN(r.valid_time_berlin) FILTER (
+        WHERE r.a_area_min_rank = 1 AND r.apparent_temperature_shade_area_weighted_c IS NOT NULL)
+        AS min_apparent_temperature_shade_area_weighted_at_berlin,
+    MIN(r.lead_hour) FILTER (
+        WHERE r.a_area_min_rank = 1 AND r.apparent_temperature_shade_area_weighted_c IS NOT NULL)
+        AS min_apparent_temperature_shade_area_weighted_lead_hour,
+    MIN(r.apparent_temperature_shade_population_weighted_c) FILTER (WHERE r.a_pop_min_rank = 1)
+        AS min_apparent_temperature_shade_population_weighted_c,
+    MIN(r.valid_time_berlin) FILTER (
+        WHERE r.a_pop_min_rank = 1 AND r.apparent_temperature_shade_population_weighted_c IS NOT NULL)
+        AS min_apparent_temperature_shade_population_weighted_at_berlin,
+    MIN(r.lead_hour) FILTER (
+        WHERE r.a_pop_min_rank = 1 AND r.apparent_temperature_shade_population_weighted_c IS NOT NULL)
+        AS min_apparent_temperature_shade_population_weighted_lead_hour
 FROM ranked AS r
 GROUP BY r.land_key;
 
@@ -580,7 +677,15 @@ WITH ranked AS (
         ROW_NUMBER() OVER (PARTITION BY k.run_time_utc
             ORDER BY k.apparent_temperature_shade_area_weighted_c DESC NULLS LAST, k.valid_time_utc) AS a_area_rank,
         ROW_NUMBER() OVER (PARTITION BY k.run_time_utc
-            ORDER BY k.apparent_temperature_shade_population_weighted_c DESC NULLS LAST, k.valid_time_utc) AS a_pop_rank
+            ORDER BY k.apparent_temperature_shade_population_weighted_c DESC NULLS LAST, k.valid_time_utc) AS a_pop_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.run_time_utc
+            ORDER BY k.temperature_area_weighted_c ASC NULLS LAST, k.valid_time_utc) AS t_area_min_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.run_time_utc
+            ORDER BY k.temperature_population_weighted_c ASC NULLS LAST, k.valid_time_utc) AS t_pop_min_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.run_time_utc
+            ORDER BY k.apparent_temperature_shade_area_weighted_c ASC NULLS LAST, k.valid_time_utc) AS a_area_min_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.run_time_utc
+            ORDER BY k.apparent_temperature_shade_population_weighted_c ASC NULLS LAST, k.valid_time_utc) AS a_pop_min_rank
     FROM analytical.de_current_bund_forecast_25h AS k
 )
 SELECT
@@ -619,7 +724,39 @@ SELECT
         AS max_apparent_temperature_shade_population_weighted_lead_hour,
     MIN(r.population_total) AS population_total,
     MIN(r.gemeinde_count) AS gemeinde_count,
-    COUNT(*) AS lead_time_count
+    COUNT(*) AS lead_time_count,
+    MIN(r.temperature_area_weighted_c) FILTER (WHERE r.t_area_min_rank = 1)
+        AS min_temperature_area_weighted_c,
+    MIN(r.valid_time_berlin) FILTER (
+        WHERE r.t_area_min_rank = 1 AND r.temperature_area_weighted_c IS NOT NULL)
+        AS min_temperature_area_weighted_at_berlin,
+    MIN(r.lead_hour) FILTER (
+        WHERE r.t_area_min_rank = 1 AND r.temperature_area_weighted_c IS NOT NULL)
+        AS min_temperature_area_weighted_lead_hour,
+    MIN(r.temperature_population_weighted_c) FILTER (WHERE r.t_pop_min_rank = 1)
+        AS min_temperature_population_weighted_c,
+    MIN(r.valid_time_berlin) FILTER (
+        WHERE r.t_pop_min_rank = 1 AND r.temperature_population_weighted_c IS NOT NULL)
+        AS min_temperature_population_weighted_at_berlin,
+    MIN(r.lead_hour) FILTER (
+        WHERE r.t_pop_min_rank = 1 AND r.temperature_population_weighted_c IS NOT NULL)
+        AS min_temperature_population_weighted_lead_hour,
+    MIN(r.apparent_temperature_shade_area_weighted_c) FILTER (WHERE r.a_area_min_rank = 1)
+        AS min_apparent_temperature_shade_area_weighted_c,
+    MIN(r.valid_time_berlin) FILTER (
+        WHERE r.a_area_min_rank = 1 AND r.apparent_temperature_shade_area_weighted_c IS NOT NULL)
+        AS min_apparent_temperature_shade_area_weighted_at_berlin,
+    MIN(r.lead_hour) FILTER (
+        WHERE r.a_area_min_rank = 1 AND r.apparent_temperature_shade_area_weighted_c IS NOT NULL)
+        AS min_apparent_temperature_shade_area_weighted_lead_hour,
+    MIN(r.apparent_temperature_shade_population_weighted_c) FILTER (WHERE r.a_pop_min_rank = 1)
+        AS min_apparent_temperature_shade_population_weighted_c,
+    MIN(r.valid_time_berlin) FILTER (
+        WHERE r.a_pop_min_rank = 1 AND r.apparent_temperature_shade_population_weighted_c IS NOT NULL)
+        AS min_apparent_temperature_shade_population_weighted_at_berlin,
+    MIN(r.lead_hour) FILTER (
+        WHERE r.a_pop_min_rank = 1 AND r.apparent_temperature_shade_population_weighted_c IS NOT NULL)
+        AS min_apparent_temperature_shade_population_weighted_lead_hour
 FROM ranked AS r
 GROUP BY r.run_time_utc;
 
