@@ -107,15 +107,16 @@ uv run --env-file .env python -m src.export_germany_dashboard --serve
 | `values.json` | schema 2, current complete run: per region the 24-hour maximum of shade apparent temperature and air temperature with its lead hour (an index into `valid_times_berlin`; read from the `de_current_*_summary` views), residents, names. Keys are descriptive, e.g. `max_apparent_temperature_shade_population_weighted_c` | every export |
 
 Generated files are git-ignored. The page joins values to outlines with
-MapLibre feature-state (`promoteId: "k"`), so tiles are never rebuilt per run.
+MapLibre feature-state (`promoteId: "key"`), so tiles are never rebuilt per run.
 
 **What it shows.** A choropleth of the maximum shade apparent temperature
 over the next 24 hours at Land, Kreis or Gemeinde level (radio buttons,
 keyboard operable). Kreis and Land values switch between area- and
 population-weighted roll-ups. Hover or click shows name, parents, maximum
-with its time (Europe/Berlin), maximum air temperature and residents;
-"Find a region" does the same by name and zooms to it. The forecast run time
-is in the header.
+with its time (Europe/Berlin), maximum air temperature and residents; a click
+pins the region (the way to read a value on a touch screen). The forecast run
+time is in the header. The local preview is `src/germany/preview_server.py`
+(Range requests, which PMTiles needs).
 
 **Colour scale.** ColorBrewer YlOrRd, continuous, sequential in lightness
 (readable with the common colour-vision deficiencies). The range is this
@@ -138,4 +139,26 @@ The cell-to-Gemeinde aggregation runs in SQL
 (`normalized.refresh_de_forecast_partition`). A numpy version was measured
 against it during development and removed afterwards; the measured comparison
 is in [germany-layer-facts.md](germany-layer-facts.md#sql-vs-python-aggregation)
-and ADR 018 (to be written in M6).
+and [ADR 018](adr/018-sql-aggregation-and-cell-storage.md).
+
+## Things to know
+
+- Every job applies the three idempotent schema files in `sql/germany/` first,
+  so a forecast run applies them once per lead time. This is simple and safe;
+  it is why no separate install step exists.
+- Building the boundary tiles needs `tippecanoe`, once per geography version.
+- The serving views compute on read; a query takes about 1.6 to 2.7 seconds.
+- `de_icon_cell_gemeinde_bridge_cell_idx` supports the foreign key from the
+  bridge to the cells. Without it, rebuilding the bridge on an installed
+  database takes about five times longer (648 s against 126 s).
+- Per-cell values are stored for the two retained runs; whether to keep that is
+  an open decision (ADR 018).
+
+## Decisions
+
+[ADR 014](adr/014-equal-area-projection-for-germany.md) equal-area projection ·
+[ADR 015](adr/015-rollup-weighting.md) roll-up weighting ·
+[ADR 016](adr/016-map-pmtiles-and-json-values.md) map: PMTiles and JSON ·
+[ADR 017](adr/017-zensus-2022-population-and-source-checks.md) Zensus and source
+checks · [ADR 018](adr/018-sql-aggregation-and-cell-storage.md) SQL aggregation
+and cell storage.

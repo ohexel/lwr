@@ -77,6 +77,6 @@ Results on the loaded files (`docs/germany-layer-facts.md`):
   check 1 as non-blocking exceptions.
 - The Gebietsstand of VG250 (31 Dec 2022) was chosen because all 10,786 Zensus
   Gemeinde keys exist in it; the 1 Jan 2022 vintage lacks two. Boundary changes
-  between 15 May and 31 Dec 2022 that kept their keys remain a residual risk.
+  between 15 May and 31 Dec 2022 that kept their keys remain a possible source of error.
 - Zensus data carry the licence dl-de/by-2-0 and the attribution
   "© Statistische Ämter des Bundes und der Länder, Deutschland, 2026".

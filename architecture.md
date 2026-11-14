@@ -44,6 +44,10 @@ uses a reproducible `uv` environment.
 This is a source-aware **batch pipeline** with hourly forecast partitions. It
 is not a streaming platform, medical decision system, or dashboard product.
 
+The Germany layer described under [Germany layer](#germany-layer) extends this
+pipeline to Bund, Länder, Kreise and Gemeinden with its own, `de_`-prefixed
+relations in the same three schemas.
+
 ## Source systems
 
 | Source | Grain | Refresh behavior | Operational role |
@@ -252,6 +256,85 @@ using local HTML, CSS, and JavaScript. It uses no map tiles, frontend framework,
 CDN, API endpoint, or live database connection. This keeps PostgreSQL
 credentials out of the website and makes the exported folder deployable on an
 ordinary static host.
+
+## Germany layer
+
+The Germany layer follows the same `raw` → `normalized` → `analytical` layering
+and the same Dagster code location. Every relation carries the prefix `de_`;
+the Berlin relations, views, sensor and tests are not changed. The layer reads
+Berlin's ICON cell polygons (`normalized.icon_cell`) and the Berlin function
+`normalized.calculate_apparent_temperature_shade_c`, and writes only `de_`
+objects. Operation and measurements are in
+[docs/germany-layer.md](docs/germany-layer.md); decisions are in ADRs
+[014](docs/adr/014-equal-area-projection-for-germany.md) to
+[018](docs/adr/018-sql-aggregation-and-cell-storage.md).
+
+### Sources
+
+| Source | Grain | Refresh behavior | Operational role |
+| --- | --- | --- | --- |
+| BKG VG250 | Staat, Länder, Kreise, Gemeinden; status 31 Dec 2022, EPSG:25832 | Static (one vintage, checksum pinned) | Administrative hierarchy and geometry. |
+| Zensus 2022 table 1000A-1003 | Länder, Kreise, Gemeinden; reference date 15 May 2022 | Static (one census, checksum pinned) | Total population per region and the published totals for the source checks. |
+| DWD ICON-D2-RUC | Forecast run, lead time, grid cell | Rolling publication (shared with Berlin) | Temperature, humidity and wind fields. |
+
+### Relations by layer
+
+| Schema | Relations |
+| --- | --- |
+| `raw` | `de_vg250`, `de_zensus2022_population` |
+| `normalized` | `de_land`, `de_kreis`, `de_gemeinde` (hierarchy, EPSG:3035 geometry, area), `de_gemeinde_population`, `de_zensus_published_population`, `de_icon_cell`, `de_icon_cell_gemeinde_bridge`, `de_forecast_run`, `de_icon_cell_value`, `de_gemeinde_forecast` |
+| `analytical` | `de_current_run`; `de_current_{gemeinde,kreis,land,bund}_forecast_25h`; `de_current_{gemeinde,kreis,land,bund}_summary` |
+
+Kreis, Land and Bund values are rolled up from Gemeinden with an area and a
+population weighting (ADR 015). The `_summary` views hold the 24-hour maximum
+of each measure and its time, with one rule for all four levels. The
+`de_current_*` views show the newest run in which every Gemeinde has all 25
+lead times, the same switching rule as Berlin's 25-hour views.
+
+### Orchestration
+
+Three jobs in the group `germany`:
+
+| Job | Command | What it does |
+| --- | --- | --- |
+| `germany_static` | `python -m src.germany.run_static` | VG250 and Zensus raw loads, hierarchy, population, grid subset and bridge, checks 1–4. Safe to repeat: an existing geography version from the same file is left unchanged. |
+| `germany_forecast` | (one partition per lead time, started by the next command) | The four raw DWD fields (shared with Berlin, files only) and the Germany aggregation in SQL. |
+| `germany_forecast_publish` | `python -m src.germany.run_forecast --run-time …` | Runs all 25 lead times, then publishes, applies retention and runs checks 5–7. |
+
+The Berlin availability sensor does not trigger these jobs and stays stopped
+by default. Retention keeps the newest complete run and the one before it, as
+database rows only; GRIB files follow Berlin's existing file rule.
+
+### Checks
+
+Seven asset checks compare the layer with its sources and itself (README,
+"Checks against the sources"): key coverage and hierarchy integrity on the
+normalized hierarchy, source totals on the population, bridge coverage on the
+bridge, and completeness, plausibility and Berlin cross-layer consistency on
+the published forecast. Two further checks pin the raw files to their
+checksums and counts.
+
+### Map
+
+`python -m src.export_germany_dashboard` writes a static folder in
+`web/germany-dashboard/`: a PMTiles archive of Land, Kreis and Gemeinde
+outlines (built once per geography version) and one `values.json` per run,
+joined in the browser by regional key (ADR 016). The host must answer HTTP
+Range requests; the local preview (`src/germany/preview_server.py`) does.
+
+### Things to know
+
+- Every job applies the three idempotent Germany schema files first, so a
+  forecast run applies them once per lead time. This is simple and safe; it is
+  why no separate install step exists.
+- Building tiles needs the program `tippecanoe`, once per geography version.
+- The serving views compute on read; a query takes about 1.6 to 2.7 seconds.
+
+### Adding a further theme
+
+A new theme is one table keyed by the geography version and a regional key,
+plus the same roll-up pattern. The hierarchy tables do not change. It needs its
+own source contract and checks against the source's published totals.
 
 ## Failure boundaries and restart behavior
 
