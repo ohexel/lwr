@@ -126,7 +126,7 @@ def test_level_switch_is_keyboard_operable_and_values_are_not_classified() -> No
     for level in ("lan", "krs", "gem"):
         assert f'type="radio" name="level" value="{level}"' in html
     script = (DASHBOARD_SOURCE / "app.js").read_text(encoding="utf-8")
-    # Continuous colour scale (ColorBrewer YlOrRd), no warning classes.
+    # Continuous, fixed cool-to-warm colour scale, no warning classes.
     assert '"interpolate", ["linear"], ["feature-state", "v"]' in script
     for word in ("warning", "danger", "risk", "alert"):
         assert word not in script.lower()

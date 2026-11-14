@@ -63,6 +63,8 @@ Separate geometry from values:
 - Features of the first version were removed to keep the page explainable:
   there is no search field. Hover, click-to-pin (the only way to read a value
   on a touch screen), the level switch and the weighting switch remain.
-- The colour scale is fitted to each run, so the same colour can mean
-  different temperatures on different days; the legend says so. No warning
-  classes are drawn.
+- The colour scale was first fitted to each run (YlOrRd, warm colours only),
+  so a cold day looked orange-red. Changed on 2026-11-14: a fixed
+  cool-to-warm scale from -20 to +30 °C, the same on every day, so 0-10 °C
+  is blue to pale blue and a colour always means the same temperature. No
+  warning classes are drawn.

@@ -1,4 +1,4 @@
-/* Germany 24-hour forecast map: PMTiles outlines (key only) joined
+/* Karte der 24-Stunden-Vorhersage für Deutschland: PMTiles outlines (key only) joined
    client-side with data/values.json via feature-state. No basemap. */
 (function () {
   "use strict";
@@ -6,15 +6,28 @@
   const SOURCE = "de";
   const LEVELS = ["lan", "krs", "gem"];
   const LEVEL_LABEL = { lan: "Land", krs: "Kreis", gem: "Gemeinde" };
-  // ColorBrewer YlOrRd (9 classes): sequential, single-hue progression in
-  // lightness, readable with the common colour-vision deficiencies.
-  const RAMP = ["#ffffcc", "#ffeda0", "#fed976", "#feb24c", "#fd8d3c",
-                "#fc4e2a", "#e31a1c", "#bd0026", "#800026"];
+  const WEIGHT_LABEL = { area: "flächengewichtet", population: "bevölkerungsgewichtet" };
+  // "max" and "min" are the first part of the values.json keys.
+  const EXTREME = {
+    max: { value: "Höchstwert", legend: "Höchste gefühlte Temperatur im Schatten, nächste 24 h" },
+    min: { value: "Tiefstwert", legend: "Niedrigste gefühlte Temperatur im Schatten, nächste 24 h" },
+  };
+  // Fixed cool-to-warm scale (ColorBrewer RdYlBu, reversed, with the neutral
+  // pale yellow moved to 16 °C). The scale is the same on every day, so a
+  // cold day (0-10 °C) is blue to pale blue, never orange or red. Blue-red
+  // diverging colours stay distinguishable with the common colour-vision
+  // deficiencies. Values outside the range take the end colours.
+  const SCALE_MIN = -20;
+  const SCALE_MAX = 30;
+  const SCALE = [
+    [-20, "#313695"], [-10, "#4575b4"], [0, "#74add1"], [8, "#abd9e9"],
+    [16, "#ffffbf"], [22, "#fdae61"], [26, "#f46d43"], [30, "#d73027"],
+  ];
   const NO_DATA = getComputedStyle(document.documentElement)
     .getPropertyValue("--nodata").trim() || "#c9ced6";
   const GERMANY_BOUNDS = [[5.6, 47.1], [15.3, 55.2]];
 
-  const state = { level: "krs", weighting: "area", values: null, hovered: null, pinned: null };
+  const state = { level: "krs", weighting: "area", extreme: "max", values: null, hovered: null, pinned: null };
   const APPARENT = "apparent_temperature_shade";
   const AIR = "temperature";
   const $ = (id) => document.getElementById(id);
@@ -27,22 +40,30 @@
     const [hh, mm] = t.split(":").map(Number);
     return new Date(Date.UTC(y, m - 1, day, hh, mm));
   }
-  const dayFmt = new Intl.DateTimeFormat("en-GB", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
-  const timeFmt = new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+  const dayFmt = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" });
+  const timeFmt = new Intl.DateTimeFormat("de-DE", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
   function when(hourIndex) {
     if (hourIndex === null || hourIndex === undefined) return "";
     const date = parseLocal(state.values.valid_times_berlin[hourIndex]);
     return `${dayFmt.format(date)}, ${timeFmt.format(date)}`;
   }
-  const numberFmt = new Intl.NumberFormat("en-GB");
-  const degrees = (v) => (v === null || v === undefined ? "–" : `${v.toFixed(1)} °C`);
+  const numberFmt = new Intl.NumberFormat("de-DE");
+  const oneDecimal = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const degrees = (v) => (v === null || v === undefined ? "–" : `${oneDecimal.format(v)} °C`);
 
   // ---------------------------------------------------------------- values
-  // Keys of values.json: max_<measure>_c for a Gemeinde, and
-  // max_<measure>_<area|population>_weighted_c for a Kreis or Land. The lead
-  // hour (index into valid_times_berlin) is the same key ending in _lead_hour.
-  function valueKey(level, measure, weighting = state.weighting) {
-    return level === "gem" ? `max_${measure}_c` : `max_${measure}_${weighting}_weighted_c`;
+  // Keys of values.json: <max|min>_<measure>_c for a Gemeinde, and
+  // <max|min>_<measure>_<area|population>_weighted_c for a Kreis or Land. The
+  // lead hour (index into valid_times_berlin) is the same key ending in
+  // _lead_hour. The max_ keys exist today; the min_ keys follow the same
+  // naming once the backend provides them (see hasExtreme).
+  function valueKey(level, measure, weighting = state.weighting, extreme = state.extreme) {
+    return level === "gem" ? `${extreme}_${measure}_c` : `${extreme}_${measure}_${weighting}_weighted_c`;
+  }
+  function hasExtreme(extreme) {
+    const records = state.values.gem;
+    const first = records[Object.keys(records)[0]];
+    return Boolean(first) && `${extreme}_${APPARENT}_c` in first;
   }
   const hourKey = (key) => key.replace(/_c$/, "_lead_hour");
   function valueAndTime(level, record, measure, weighting) {
@@ -53,19 +74,9 @@
     return record ? record[valueKey(level, APPARENT)] : null;
   }
 
-  // Colour domain: this run's Gemeinde range, widened to whole 5 °C steps.
-  // It is shared by all levels but changes between runs (see legend).
-  function domain() {
-    const [low, high] = state.values.apparent_range_c;
-    const lo = Math.floor(low / 5) * 5;
-    return [lo, Math.max(Math.ceil(high / 5) * 5, lo + 5)];
-  }
-
   function colourExpression() {
-    const [low, high] = domain();
-    const span = Math.max(high - low, 1);
     const stops = [];
-    RAMP.forEach((colour, i) => stops.push(low + (span * i) / (RAMP.length - 1), colour));
+    for (const [temperature, colour] of SCALE) stops.push(temperature, colour);
     return ["case",
       ["==", ["typeof", ["feature-state", "v"]], "number"],
       ["interpolate", ["linear"], ["feature-state", "v"], ...stops],
@@ -100,27 +111,28 @@
   }
 
   function residents(record) {
-    if (record.population_total === null || record.population_total === undefined) return "no census record";
+    if (record.population_total === null || record.population_total === undefined) return "kein Zensus-Datensatz";
     // Defensive: not present in the current extract (see normalized_schema.sql).
-    if (record.population_status === "census_zero_or_set_to_zero") return "0 (exactly zero or set to zero)";
+    if (record.population_status === "census_zero_or_set_to_zero") return "0 (genau null oder auf null gesetzt)";
     return numberFmt.format(record.population_total);
   }
 
   function rows(level, record) {
+    const e = EXTREME[state.extreme].value;
     if (level === "gem") {
       return [
-        ["Max. apparent", valueAndTime(level, record, APPARENT)],
-        ["Max. air temp.", valueAndTime(level, record, AIR)],
-        ["Residents", residents(record)],
+        [`${e}, gefühlte Temperatur`, valueAndTime(level, record, APPARENT)],
+        [`${e}, Lufttemperatur`, valueAndTime(level, record, AIR)],
+        ["Einwohner", residents(record)],
       ];
     }
     const chosen = state.weighting;
     const other = chosen === "population" ? "area" : "population";
     return [
-      [`Max. apparent (${chosen})`, valueAndTime(level, record, APPARENT, chosen)],
-      [`Max. air temp. (${chosen})`, valueAndTime(level, record, AIR, chosen)],
-      [`Max. apparent (${other})`, valueAndTime(level, record, APPARENT, other)],
-      ["Residents", residents(record)],
+      [`${e}, gefühlt (${WEIGHT_LABEL[chosen]})`, valueAndTime(level, record, APPARENT, chosen)],
+      [`${e}, Lufttemperatur (${WEIGHT_LABEL[chosen]})`, valueAndTime(level, record, AIR, chosen)],
+      [`${e}, gefühlt (${WEIGHT_LABEL[other]})`, valueAndTime(level, record, APPARENT, other)],
+      ["Einwohner", residents(record)],
       ["Gemeinden", numberFmt.format(record.gemeinde_count)],
     ];
   }
@@ -132,7 +144,7 @@
     if (!record) {
       const p = document.createElement("p");
       p.className = "hint";
-      p.textContent = "Hover over or click a region.";
+      p.textContent = "Region mit der Maus überfahren oder anklicken.";
       panel.append(p);
       return;
     }
@@ -174,17 +186,18 @@
   }
 
   // ---------------------------------------------------------------- legend
+  const minus = (t) => (t < 0 ? `\u2212${-t}` : String(t));
   function renderLegend() {
-    const [low, high] = domain();
-    $("legend-bar").style.background = `linear-gradient(to right, ${RAMP.join(", ")})`;
+    $("legend-title").textContent = EXTREME[state.extreme].legend;
+    const position = (t) => (100 * (t - SCALE_MIN)) / (SCALE_MAX - SCALE_MIN);
+    $("legend-bar").style.background =
+      `linear-gradient(to right, ${SCALE.map(([t, colour]) => `${colour} ${position(t)}%`).join(", ")})`;
     const ticks = $("legend-ticks");
     ticks.replaceChildren();
-    const step = 5;
-    const steps = Math.round((high - low) / step);
-    for (let i = 0; i <= steps; i += 1) {
+    for (let t = SCALE_MIN; t <= SCALE_MAX; t += 10) {
       const span = document.createElement("span");
-      span.textContent = `${low + i * step}${i === steps ? " °C" : ""}`;
-      span.style.left = `${(100 * i) / steps}%`;
+      span.textContent = `${minus(t)}${t === SCALE_MAX ? " °C" : ""}`;
+      span.style.left = `${position(t)}%`;
       ticks.append(span);
     }
   }
@@ -195,19 +208,19 @@
     const last = parseLocal(v.valid_times_berlin[v.valid_times_berlin.length - 1]);
     const el = $("run-time");
     el.replaceChildren();
-    el.append(`Forecast run ${dayFmt.format(run)}, ${timeFmt.format(run)} (Berlin time)`);
+    el.append(`Vorhersagelauf ${dayFmt.format(run)}, ${timeFmt.format(run)} Uhr (Ortszeit Berlin)`);
     const small = document.createElement("small");
-    small.textContent = ` · ${v.run_time_utc.replace("T", " ").replace("Z", " UTC")} · valid until ${dayFmt.format(last)}, ${timeFmt.format(last)}`;
+    small.textContent = ` · ${v.run_time_utc.replace("T", " ").replace("Z", " UTC")} · gültig bis ${dayFmt.format(last)}, ${timeFmt.format(last)} Uhr`;
     el.append(small);
     const b = v.bund;
-    const part = (weighting, label) => {
+    const part = (weighting) => {
       const key = valueKey("bund", APPARENT, weighting);
-      return `${degrees(b[key])} ${label} (${when(b[hourKey(key)])})`;
+      return `${degrees(b[key])} ${WEIGHT_LABEL[weighting]} (${when(b[hourKey(key)])})`;
     };
     $("bund").textContent =
-      `Germany as a whole: max. apparent ${part("area", "area-weighted")}, ` +
-      `${part("population", "population-weighted")}; ` +
-      `${numberFmt.format(b.population_total)} residents with a census record.`;
+      `Deutschland insgesamt, ${EXTREME[state.extreme].value} gefühlt: ${part("area")}, ` +
+      `${part("population")}; ` +
+      `${numberFmt.format(b.population_total)} Einwohner mit Zensus-Datensatz.`;
   }
 
   // ---------------------------------------------------------------- map
@@ -326,6 +339,16 @@
     for (const input of document.querySelectorAll('input[name="level"]')) {
       input.addEventListener("change", () => setLevel(map, input.value));
     }
+    for (const input of document.querySelectorAll('input[name="extreme"]')) {
+      input.addEventListener("change", () => {
+        state.extreme = input.value;
+        applyValues(map, LEVELS);
+        renderLegend();
+        renderHeader();
+        $("tooltip").hidden = true;
+        renderDetails(state.level, state.pinned ? state.pinned.id : null);
+      });
+    }
     for (const input of document.querySelectorAll('input[name="weighting"]')) {
       input.addEventListener("change", () => {
         state.weighting = input.value;
@@ -345,8 +368,13 @@
     } catch (error) {
       const el = $("run-time");
       el.className = "run error";
-      el.textContent = `The forecast data could not be loaded (${error.message}).`;
+      el.textContent = `Die Vorhersagedaten konnten nicht geladen werden (${error.message}).`;
       return;
+    }
+    // Tiefstwerte need min_ keys in values.json; until then the option is off.
+    if (!hasExtreme("min")) {
+      document.querySelector('input[name="extreme"][value="min"]').disabled = true;
+      $("extreme-note").hidden = false;
     }
     renderHeader();
     renderLegend();

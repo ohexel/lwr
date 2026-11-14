@@ -47,6 +47,7 @@ input[type="radio"]:focus-visible, a:focus-visible {
 }
 
 .legend-title { margin: 0 0 0.4rem; }
+.field-note { margin: 0; width: 100%; font-size: 0.8rem; color: var(--muted); }
 .legend-bar { height: 14px; border-radius: 3px; border: 1px solid var(--line); }
 .legend-ticks { position: relative; height: 1.2rem; font-size: 0.8rem; color: var(--muted); }
 .legend-ticks span { position: absolute; transform: translateX(-50%); top: 2px; white-space: nowrap; }

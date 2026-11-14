@@ -109,21 +109,28 @@ uv run --env-file .env python -m src.export_germany_dashboard --serve
 Generated files are git-ignored. The page joins values to outlines with
 MapLibre feature-state (`promoteId: "key"`), so tiles are never rebuilt per run.
 
-**What it shows.** A choropleth of the maximum shade apparent temperature
-over the next 24 hours at Land, Kreis or Gemeinde level (radio buttons,
-keyboard operable). Kreis and Land values switch between area- and
-population-weighted roll-ups. Hover or click shows name, parents, maximum
-with its time (Europe/Berlin), maximum air temperature and residents; a click
+**What it shows.** All user-facing text is German; the page title is
+"Deutschland: Höchst- und Tiefsttemperaturen über die nächsten 24 Stunden".
+A choropleth of the highest or lowest shade apparent temperature over the
+next 24 hours at Land, Kreis or Gemeinde level (radio buttons, keyboard
+operable). A switch chooses Höchstwerte or Tiefstwerte; the page reads
+`min_<measure>_c` / `min_<measure>_<area|population>_weighted_c` (and the
+matching `_lead_hour`) from `values.json`, the same naming as the `max_` keys.
+Until the export provides them the Tiefstwerte option is disabled with a note.
+Kreis and Land values switch between area- and
+population-weighted roll-ups. Hover or click shows name, parents, the
+extreme with its time (Europe/Berlin), the extreme air temperature and residents; a click
 pins the region (the way to read a value on a touch screen). The forecast run
 time is in the header. The local preview is `src/germany/preview_server.py`
 (Range requests, which PMTiles needs).
 
-**Colour scale.** ColorBrewer YlOrRd, continuous, sequential in lightness
-(readable with the common colour-vision deficiencies). The range is this
-run's Gemeinde minimum to maximum, widened to whole 5 °C steps, and shared by
-all three levels. Because it follows the run, the same colour can mean
-different temperatures on different days; the legend says so. No warning
-classes are drawn (D5).
+**Colour scale.** Fixed and continuous, cool to warm: dark blue at -20 °C,
+blue at -10 °C, light blue at 0 °C, pale blue at 8 °C, pale yellow at 16 °C,
+orange at 22 °C, red at 30 °C (ColorBrewer RdYlBu, reversed, neutral moved to
+16 °C; values outside the range take the end colours). It is the same on every
+day and for all three levels, so a cold day (0-10 °C) is blue, never orange or
+red, and a colour always means the same temperature. No warning classes are
+drawn (D5).
 
 **Upload.** Copy the whole `web/germany-dashboard/` folder (including
 `data/`) to the web host. The host must answer HTTP Range requests for the
