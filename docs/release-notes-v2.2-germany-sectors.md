@@ -1,4 +1,4 @@
-# Draft: v2.2-germany-sector-layer (to be published by the maintainer)
+# v2.2: Add sector theme
 
 ## Summary
 
