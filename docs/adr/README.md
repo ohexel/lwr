@@ -16,6 +16,14 @@ and serving contract are shaped as they are.
 10. [Complete forecast horizon and median-based summary](009-complete-forecast-horizon-and-median-summary.md)
 11. [Static, dependency-free temperature dashboard](010-static-temperature-dashboard.md)
 
+## Germany layer (v2.0)
+
+- ADR 014: [Equal-area projection for Germany-wide area weights](014-equal-area-projection-for-germany.md)
+- ADR 015: [Roll-up weighting for Kreis, Land and Bund](015-rollup-weighting.md)
+- ADR 016: [Germany map: PMTiles outlines and a JSON values file](016-map-pmtiles-and-json-values.md)
+- ADR 017: [Zensus 2022 population and the checks against the source](017-zensus-2022-population-and-source-checks.md)
+- ADR 018: [SQL aggregation of the forecast, and per-cell storage](018-sql-aggregation-and-cell-storage.md)
+
 Earlier working notes or development-era ADRs may remain in this directory as
 project detail. The records linked above describe the supported handoff state;
 the authoritative operational commands are in [../../runbook.md](../../runbook.md).
