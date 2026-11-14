@@ -26,6 +26,11 @@ def _one(sql: str, params: tuple | dict = ()) -> tuple:
         return connection.execute(sql, params).fetchone()
 
 
+def _all(sql: str, params: tuple | dict = ()) -> list[tuple]:
+    with database_connection(application_name="lwr_germany_acceptance") as connection:
+        return connection.execute(sql, params).fetchall()
+
+
 def test_germany_group_is_registered_with_all_checks() -> None:
     from src.dagster_pipeline.definitions import defs
 
@@ -43,6 +48,8 @@ def test_germany_group_is_registered_with_all_checks() -> None:
         "normalized/de_icon_gemeinde_bridge",
         "normalized/de_gemeinde_forecast",
         "analytical/de_current_forecast_25h",
+        "raw/de_ba_gemeindedaten",
+        "normalized/de_indicator_value",
     } <= germany_assets
     check_names = {key.name for key in graph.asset_check_keys}
     assert {
@@ -53,14 +60,19 @@ def test_germany_group_is_registered_with_all_checks() -> None:
         "de_forecast_completeness",
         "de_forecast_plausibility",
         "de_berlin_cross_layer_consistency",
+        "de_ba_source_contract",
+        "de_ba_column_identities",
+        "de_ba_key_coverage",
+        "de_ba_source_totals",
     } <= check_names
 
 
 def test_all_germany_checks_pass_on_installed_data() -> None:
+    from src.dagster_pipeline.checks.germany_employment import GERMANY_EMPLOYMENT_CHECKS
     from src.dagster_pipeline.checks.germany_forecast import GERMANY_FORECAST_CHECKS
     from src.dagster_pipeline.checks.germany_normalized import GERMANY_NORMALIZED_CHECKS
 
-    for check in (*GERMANY_NORMALIZED_CHECKS, *GERMANY_FORECAST_CHECKS):
+    for check in (*GERMANY_NORMALIZED_CHECKS, *GERMANY_FORECAST_CHECKS, *GERMANY_EMPLOYMENT_CHECKS):
         result = check.node_def.compute_fn.decorated_fn()
         assert result.passed, (check.check_key.name, result.metadata)
 
@@ -249,3 +261,57 @@ def test_map_values_export_is_complete_for_the_current_run() -> None:
     for weighting in ("area", "population"):
         key = f"apparent_temperature_shade_{weighting}_weighted_c"
         assert bund[f"min_{key}"] <= bund[f"max_{key}"]
+
+
+# ---------------------------------------------------------------------------
+# Second theme: employment (BA Gemeindedaten), after python -m src.germany.run_employment
+# ---------------------------------------------------------------------------
+def test_employment_view_covers_every_region_with_an_explicit_status() -> None:
+    from src.germany.contract import BA_GEMEINDEDATEN_CONTRACT
+
+    rows = dict(
+        ((level, status), count)
+        for level, status, count in _all(
+            """
+            SELECT level, jobs_ratio_status, COUNT(*)
+            FROM analytical.de_current_employment GROUP BY 1, 2
+            """
+        )
+    )
+    reference_date = _one(
+        "SELECT DISTINCT reference_date FROM analytical.de_current_employment"
+    )[0]
+    known = BA_GEMEINDEDATEN_CONTRACT.vintage(reference_date)
+    assert sum(c for (level, _), c in rows.items() if level == "gem") == GEMEINDEN
+    assert rows[("krs", "value")] == KREISE
+    assert rows[("lan", "value")] == LAENDER
+    assert rows[("sta", "value")] == 1
+    if known is not None:
+        # Not reported: the unincorporated areas without employees (204) and
+        # the Gemeinden merged after the geography version.
+        assert rows[("gem", "not_reported")] == 204 + len(known.geography_without_source)
+    # The ratio is exactly the quotient of the two published values.
+    mismatches = _one(
+        """
+        SELECT COUNT(*) FROM analytical.de_current_employment
+        WHERE jobs_ratio_status = 'value'
+          AND jobs_ratio IS DISTINCT FROM employees_workplace / employees_residence
+        """
+    )[0]
+    assert mismatches == 0
+
+
+def test_employment_export_is_complete() -> None:
+    from src.export_germany_dashboard import collect_employment
+
+    with database_connection(application_name="lwr_germany_acceptance") as connection:
+        employment = collect_employment(connection)
+    assert employment is not None
+    assert (len(employment["lan"]), len(employment["krs"]), len(employment["gem"])) == (
+        LAENDER, KREISE, GEMEINDEN,
+    )
+    bund = employment["bund"]
+    assert bund["jobs_ratio_status"] == "value"
+    assert bund["employees_workplace"] >= sum(
+        r["employees_workplace"] for r in employment["lan"].values()
+    )

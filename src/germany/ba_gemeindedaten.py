@@ -304,8 +304,8 @@ def _read_rows(
 
 def _check_content(content: BaWorkbook, contract: BaGemeindedatenContract) -> None:
     data, laender = contract.data_sheet, contract.laender_sheet
-    if content.count(data, "lan") != 16 or content.count(laender, "lan") != 16:
-        raise BaContractError("Both sheets must list the 16 Länder")
+    if {content.count(data, "lan"), content.count(laender, "lan")} != {contract.land_count}:
+        raise BaContractError(f"Both sheets must list the {contract.land_count} Länder")
     if content.count(laender, "sta") != 1 or content.count(laender, "unassigned") != 1:
         raise BaContractError(
             "Sheet Länder must have one Germany and one unassigned row"

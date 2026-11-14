@@ -5,25 +5,32 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Deutschland: Höchst- und Tiefsttemperaturen über die nächsten 24 Stunden</title>
   <link rel="icon" href="data:,">
-  <meta name="description" content="Höchste und niedrigste gefühlte Temperatur im Schatten in den nächsten 24 Stunden für jedes Land, jeden Kreis und jede Gemeinde Deutschlands, aus der DWD-Vorhersage ICON-D2-RUC.">
+  <meta name="description" content="Karte für jedes Land, jeden Kreis und jede Gemeinde Deutschlands: höchste und niedrigste gefühlte Temperatur der nächsten 24 Stunden (DWD ICON-D2-RUC) und Beschäftigte am Arbeitsort je Beschäftigten am Wohnort (Statistik der Bundesagentur für Arbeit).">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css"
         integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
-  <link rel="stylesheet" href="styles.css?v=3">
+  <link rel="stylesheet" href="styles.css?v=5">
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"
           integrity="sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj" crossorigin="anonymous" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/pmtiles@3.2.1/dist/pmtiles.js"
           integrity="sha384-QfbOCebHNw8pQiPAOd2IFee2v2A5VYZxBk0+JGZ5H+3mfzVIp6zsQNkTsfGJot93" crossorigin="anonymous" defer></script>
-  <script src="app.js?v=4" defer></script>
+  <script src="app.js?v=5" defer></script>
 </head>
 <body>
   <header class="masthead">
-    <p class="eyebrow">DWD ICON-D2-RUC · Zensus 2022 · VG250</p>
-    <h1>Deutschland: Höchst- und Tiefsttemperaturen über die nächsten 24 Stunden</h1>
-    <p class="run" id="run-time" aria-live="polite">Vorhersagelauf wird geladen…</p>
+    <p class="eyebrow" id="eyebrow">DWD ICON-D2-RUC · Zensus 2022 · VG250</p>
+    <h1 id="title">Deutschland: Höchst- und Tiefsttemperaturen über die nächsten 24 Stunden</h1>
+    <p class="run" id="run-time" aria-live="polite">Kartendaten werden geladen…</p>
   </header>
 
   <main class="layout">
     <section class="controls" aria-label="Kartensteuerung">
+      <fieldset id="theme-field">
+        <legend>Thema</legend>
+        <label><input type="radio" name="theme" value="temperature" checked> Temperatur</label>
+        <label><input type="radio" name="theme" value="employment"> Beschäftigung</label>
+        <p class="field-note" id="theme-note" hidden>Die Beschäftigungsdaten sind nicht geladen.</p>
+      </fieldset>
+
       <fieldset id="extreme-field">
         <legend>Anzeige</legend>
         <label><input type="radio" name="extreme" value="max" checked> Höchstwerte</label>
@@ -48,8 +55,10 @@
         <p id="legend-title" class="legend-title"></p>
         <div class="legend-bar" id="legend-bar"></div>
         <div class="legend-ticks" id="legend-ticks"></div>
-        <p class="legend-nodata"><span class="swatch nodata"></span> Kein Wert</p>
-        <p class="legend-nodata">Feste Skala von −20 °C bis +30 °C; dieselbe Farbe bedeutet an jedem Tag dieselbe Temperatur.</p>
+        <p class="legend-ends" id="legend-ends" hidden><span>mehr Beschäftigte wohnen hier</span><span>mehr Arbeitsplätze</span></p>
+        <p class="legend-nodata" id="legend-suppressed" hidden><span class="swatch suppressed"></span> von der BA geheimgehalten</p>
+        <p class="legend-nodata"><span class="swatch nodata"></span> <span id="legend-missing-label">Kein Wert</span></p>
+        <p class="legend-nodata" id="legend-note">Feste Skala von −20 °C bis +30 °C; dieselbe Farbe bedeutet an jedem Tag dieselbe Temperatur.</p>
       </div>
 
       <section class="details" id="details" aria-live="polite">
@@ -66,7 +75,22 @@
   </main>
 
   <footer class="notes">
-    <p>
+    <p data-theme="employment" hidden>
+      <strong>Beschäftigte am Arbeitsort je Beschäftigten am Wohnort</strong> (eigene
+      Berechnung aus zwei Werten der Bundesagentur für Arbeit): sozialversicherungspflichtig
+      Beschäftigte, die in einer Region arbeiten, geteilt durch die, die dort wohnen.
+      Über 1 hat eine Region mehr Arbeitsplätze als beschäftigte Einwohner, unter 1 pendeln
+      mehr Beschäftigte hinaus als herein. Beamte, Selbstständige und Minijobs sind nicht
+      enthalten. Kreis- und Landeswerte sind die von der BA veröffentlichten Werte.
+    </p>
+    <p data-theme="employment" hidden>
+      <strong>Fehlende Werte:</strong> Die BA hält Werte unter 3 und Angaben zu Gemeinden mit
+      wenigen Betrieben geheim (Sozialdatenschutz); diese Gemeinden haben kein Verhältnis.
+      Die Gemeindegrenzen der Karte sind von 2022, die Zahlen vom Stichtag: Gemeinden, die
+      seitdem aufgelöst oder zusammengelegt wurden, weist die BA nicht mehr aus, und eine
+      Gemeinde, die eine andere aufgenommen hat, zeigt ihren Wert auf der Fläche von 2022.
+    </p>
+    <p data-theme="temperature">
       <strong>Gefühlte Temperatur im Schatten</strong> verbindet Lufttemperatur,
       Luftfeuchte und Windgeschwindigkeit (dieselbe Formel wie im Berliner Dashboard).
       Sonnenstrahlung ist nicht enthalten; es ist daher kein vollständiges Maß für
@@ -74,7 +98,7 @@
       (ca. 2,2 km). Kreis- und Landeswerte sind Mittel ihrer Gemeinden, gewichtet nach
       Fläche oder nach Einwohnern laut Zensus 2022.
     </p>
-    <p>
+    <p data-theme="temperature">
       <strong>Einwohner:</strong> Bevölkerung insgesamt laut Zensus 2022 am 15. Mai 2022.
       Die meisten gemeindefreien Gebiete haben keinen Zensus-Datensatz; für sie wird
       eine Vorhersage, aber keine Einwohnerzahl angezeigt.
@@ -85,6 +109,10 @@
       <a href="https://www.govdata.de/dl-de/by-2-0">dl-de/by-2-0</a> ·
       Bevölkerung: Zensus 2022, © Statistische Ämter des Bundes und der Länder, Deutschland, 2026,
       <a href="https://www.govdata.de/dl-de/by-2-0">dl-de/by-2-0</a> ·
+      Beschäftigung: Statistik der Bundesagentur für Arbeit, Gemeindedaten der
+      sozialversicherungspflichtig Beschäftigten nach Wohn- und Arbeitsort, Stichtag 30.6.2025,
+      <a href="https://statistik.arbeitsagentur.de/">statistik.arbeitsagentur.de</a>;
+      Verhältnis Arbeitsort/Wohnort: eigene Berechnung ·
       Aggregation durch dieses Projekt; keine amtliche Veröffentlichung.
     </p>
   </footer>

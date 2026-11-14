@@ -150,6 +150,7 @@ class BaGemeindedatenContract:
     header_fragments: tuple[str, ...]
     unassigned_label: str
     germany_label: str
+    land_count: int
     suppressed_sign: str
     vintages: tuple[BaVintage, ...]
 
@@ -249,6 +250,7 @@ BA_GEMEINDEDATEN_CONTRACT = BaGemeindedatenContract(
     ),
     unassigned_label="keine Angabe/keine Zuordnung möglich",
     germany_label="Deutschland",
+    land_count=16,
     suppressed_sign="*",
     vintages=(
         BaVintage(

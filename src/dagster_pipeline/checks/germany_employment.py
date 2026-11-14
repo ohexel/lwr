@@ -61,8 +61,8 @@ def de_ba_source_contract() -> dg.AssetCheckResult:
 
     contract = BA_GEMEINDEDATEN_CONTRACT
     expected = {
-        "Gemeindedaten:lan": 16,
-        "Länder:lan": 16,
+        "Gemeindedaten:lan": contract.land_count,
+        "Länder:lan": contract.land_count,
         "Länder:sta": 1,
         "Länder:unassigned": 1,
     }

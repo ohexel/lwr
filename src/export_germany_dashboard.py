@@ -140,6 +140,23 @@ BUND_QUERY = (
     + " FROM analytical.de_current_bund_summary"
 )
 
+# Second theme: employment (BA Gemeindedaten), from analytical.de_current_employment.
+EMPLOYMENT_MEASURES = (
+    "employees_workplace",
+    "employees_residence",
+    "commuters_in",
+    "commuters_out",
+    "establishments",
+)
+EMPLOYMENT_QUERY = """
+SELECT level, region_key, reference_date, geography_version,
+       """ + ",\n       ".join(f"{m}, {m}_status" for m in EMPLOYMENT_MEASURES) + """,
+       not_reported_reason, jobs_ratio, jobs_ratio_status
+FROM analytical.de_current_employment
+ORDER BY level, region_key
+"""
+JOBS_RATIO_STATUSES = frozenset({"value", "suppressed", "not_reported", "not_computable"})
+
 KREIS_TYPE_QUERY = """
 SELECT kreis_key, kreis_type FROM normalized.de_kreis WHERE geography_version = %s
 """
@@ -262,6 +279,87 @@ def collect_values(connection: psycopg.Connection) -> dict[str, object]:
     }
 
 
+def employment_record(row: tuple) -> dict[str, object]:
+    """One region of employment.json. A measure is a number only when the
+    source published it; otherwise it is null and "status" says why
+    ("suppressed" by the BA or "not_reported")."""
+    measures = row[4:4 + 2 * len(EMPLOYMENT_MEASURES)]
+    reason, ratio, ratio_status = row[4 + 2 * len(EMPLOYMENT_MEASURES):]
+    if ratio_status not in JOBS_RATIO_STATUSES:
+        raise ValueError(f"{row[0]} {row[1]}: jobs_ratio_status {ratio_status!r}")
+    if (ratio is not None) != (ratio_status == "value"):
+        raise ValueError(f"{row[0]} {row[1]}: jobs_ratio {ratio!r} with {ratio_status}")
+    record: dict[str, object] = {
+        "jobs_ratio": _round(ratio, 4),
+        "jobs_ratio_status": ratio_status,
+    }
+    status: dict[str, str] = {}
+    for name, value, value_status in zip(EMPLOYMENT_MEASURES, measures[0::2], measures[1::2]):
+        record[name] = int(value) if value_status == "value" else None
+        if value_status != "value":
+            status[name] = value_status
+    if status:
+        record["status"] = status
+    if reason is not None:
+        record["not_reported_reason"] = reason
+    return record
+
+
+def collect_employment(connection: psycopg.Connection) -> dict[str, object] | None:
+    """employment.json, or None when the BA data is not loaded."""
+    exists = connection.execute(
+        "SELECT to_regclass('analytical.de_current_employment') IS NOT NULL"
+    ).fetchone()[0]
+    if not exists:
+        return None
+    rows = connection.execute(EMPLOYMENT_QUERY).fetchall()
+    if not rows:
+        return None
+    reference_dates = {row[2] for row in rows}
+    geography_versions = {row[3] for row in rows}
+    if len(reference_dates) != 1 or geography_versions != {GEOGRAPHY_VERSION}:
+        raise ValueError(
+            f"employment view mixes {reference_dates} / {geography_versions}"
+        )
+    by_level: dict[str, dict[str, dict[str, object]]] = {
+        "sta": {}, "lan": {}, "krs": {}, "gem": {}
+    }
+    for row in rows:
+        by_level[row[0]][row[1]] = employment_record(row)
+    for level in ("lan", "krs", "gem"):
+        if len(by_level[level]) != EXPECTED_COUNTS[level]:
+            raise ValueError(
+                f"employment {level}: {len(by_level[level])} regions, "
+                f"expected {EXPECTED_COUNTS[level]}"
+            )
+    if list(by_level["sta"]) != ["DG"]:
+        raise ValueError("employment: expected exactly one Germany row")
+    source = connection.execute(
+        """
+        SELECT title, publisher, citation, homepage
+        FROM normalized.de_indicator_source WHERE source_code = 'ba_gemeindedaten'
+        """
+    ).fetchone()
+    (reference_date,) = reference_dates
+    return {
+        "schema": 1,
+        "theme": "employment",
+        "geography_version": GEOGRAPHY_VERSION,
+        "reference_date": reference_date.isoformat(),
+        "source": {
+            "title": source[0],
+            "publisher": source[1],
+            "citation": source[2],
+            "homepage": source[3],
+        },
+        "exported_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
+        "bund": by_level["sta"]["DG"],
+        "lan": by_level["lan"],
+        "krs": by_level["krs"],
+        "gem": by_level["gem"],
+    }
+
+
 def _berlin_zone():
     from zoneinfo import ZoneInfo
 
@@ -363,6 +461,7 @@ def export_germany_dashboard(
 
     with database_connection(application_name="lwr_germany_dashboard_export") as connection:
         values = collect_values(connection)
+        employment = collect_employment(connection)
         if values["geography_version"] != GEOGRAPHY_VERSION:
             raise ValueError(
                 f"current run uses {values['geography_version']}, "
@@ -375,6 +474,15 @@ def export_germany_dashboard(
             result.update({"tiles_built": False, "tiles_bytes": tiles.stat().st_size})
 
     write_json_atomic(data_dir / "values.json", values)
+    if employment is None:
+        # The page then offers the temperature theme only.
+        result["employment"] = "not loaded (python -m src.germany.run_employment)"
+    else:
+        write_json_atomic(data_dir / "employment.json", employment)
+        result["employment"] = {
+            "reference_date": employment["reference_date"],
+            "bytes": (data_dir / "employment.json").stat().st_size,
+        }
     result.update(
         {
             "run_time_utc": values["run_time_utc"],
