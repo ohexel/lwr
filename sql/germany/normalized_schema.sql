@@ -139,6 +139,39 @@ BEGIN
         RAISE EXCEPTION 'No raw VG250 rows for source_sha256=%', p_source_sha256;
     END IF;
 
+    -- A geography version is built once. Forecasts and the bridge reference its
+    -- Gemeinden, so it is never deleted and rebuilt in place: the same VG250 file
+    -- gives the same hierarchy (no-op); another file needs a new geography_version.
+    IF EXISTS (
+        SELECT 1 FROM normalized.de_gemeinde
+        WHERE geography_version = p_geography_version
+    ) THEN
+        IF EXISTS (
+            SELECT 1 FROM normalized.de_gemeinde
+            WHERE geography_version = p_geography_version
+              AND source_sha256 <> p_source_sha256
+        ) THEN
+            RAISE EXCEPTION
+                'geography_version % was built from another VG250 file; '
+                'load a new VG250 vintage under a new geography_version',
+                p_geography_version;
+        END IF;
+        RAISE NOTICE 'geography_version % already built from this file; unchanged',
+            p_geography_version;
+        RETURN QUERY
+        SELECT
+            (SELECT COUNT(*) FROM normalized.de_land
+             WHERE geography_version = p_geography_version),
+            (SELECT COUNT(*) FROM normalized.de_kreis
+             WHERE geography_version = p_geography_version),
+            (SELECT COUNT(*) FROM normalized.de_gemeinde
+             WHERE geography_version = p_geography_version),
+            (SELECT COUNT(*) FROM normalized.de_gemeinde
+             WHERE geography_version = p_geography_version
+               AND is_unincorporated);
+        RETURN;
+    END IF;
+
     DELETE FROM normalized.de_gemeinde_population
     WHERE geography_version = p_geography_version;
     DELETE FROM normalized.de_gemeinde

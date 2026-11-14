@@ -48,7 +48,7 @@ def partition_complete(forecast) -> bool:
     return row is not None and row[1] > 0 and row[0] == row[1]
 
 
-def _execute(job_name: str, *, partition_key=None, run_config=None) -> dg.ExecuteInProcessResult:
+def execute_job(job_name: str, *, partition_key=None, run_config=None) -> dg.ExecuteInProcessResult:
     from src.dagster_pipeline.definitions import defs
 
     instance = dg.DagsterInstance.get()
@@ -81,7 +81,7 @@ def run_germany_forecast(
             continue
         ensure_forecast_sources_available(forecast, project_root=project_root)
         LOGGER.info("[%02d/25] Materializing Germany lead %s", index, lead_time)
-        result = _execute(
+        result = execute_job(
             "germany_forecast",
             partition_key=weather_partition_key(forecast),
         )
@@ -93,7 +93,7 @@ def run_germany_forecast(
 
     partitions_seconds = perf_counter() - started
     publish_started = perf_counter()
-    publish = _execute("germany_forecast_publish")
+    publish = execute_job("germany_forecast_publish")
     if not publish.success:
         raise RuntimeError(f"Publishing failed; inspect Dagster run {publish.run_id}")
     checks = {

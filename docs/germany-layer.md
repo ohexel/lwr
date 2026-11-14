@@ -10,19 +10,18 @@ Measured numbers: [germany-layer-facts.md](germany-layer-facts.md).
 
 ```bash
 # once: sources, hierarchy, population, grid subset and bridge
-uv run --env-file .env python -c "
-from src.bootstrap import ensure_dagster_home; from pathlib import Path
-import dagster as dg; ensure_dagster_home(Path('.'))
-from src.dagster_pipeline.definitions import defs
-defs.resolve_job_def('germany_static').execute_in_process(instance=dg.DagsterInstance.get())"
+uv run --env-file .env python -m src.germany.run_static
 
 # per forecast run (UTC label; DWD keeps runs for about 24 hours)
 uv run --env-file .env python -m src.germany.run_forecast \
   --run-time "$(date -u -d '3 hours ago' +%Y%m%dT%H00)"
 ```
 
-`germany_static` needs `ZENSUS2022_TOKEN` only when the Zensus files are not
-yet present locally. The forecast runner materializes the Dagster job
+`run_static` runs the Dagster job `germany_static`. It needs `ZENSUS2022_TOKEN`
+only when the Zensus files are not yet present locally. It is safe to repeat:
+a geography version that already exists from the same VG250 file is left
+unchanged (a different file needs a new `geography_version`); population and
+the bridge are rebuilt. The forecast runner materializes the Dagster job
 `germany_forecast` once per lead time (the four raw DWD GRIB fields, shared
 with Berlin and written only to files, plus the Germany aggregation), then
 `germany_forecast_publish`. The Berlin availability sensor does not trigger
