@@ -74,7 +74,7 @@ input[type="radio"]:focus-visible, a:focus-visible {
 .hint { color: var(--muted); font-size: 0.9rem; margin: 0; }
 .bund { margin: 0; font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 0.75rem; }
 
-.map-wrap { position: sticky; top: 1rem; height: max(70vh, 420px); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.map-wrap { position: sticky; top: 1rem; height: max(calc(100vh - 8rem), 420px); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 #map { position: absolute; inset: 0; background: #eef1f4; }
 .tooltip {
   position: absolute;

@@ -417,6 +417,8 @@
     const map = new maplibregl.Map({
       container: "map",
       bounds: GERMANY_BOUNDS,
+      // Room for the attribution bar at the bottom edge.
+      fitBoundsOptions: { padding: { top: 12, right: 12, bottom: 40, left: 12 } },
       maxBounds: [[0, 44], [21, 58]],
       minZoom: 4,
       maxZoom: 12,
