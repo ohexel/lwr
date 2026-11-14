@@ -92,6 +92,11 @@ verification are below.
   to warm over -20 to +30 °C instead of being fitted to each run, so a cold
   day is shown in blue, not orange-red, and a colour means the same
   temperature on every day (ADR 016).
+- `docs/germany-layer-facts.md` was regenerated on 14 Nov from the installed
+  database; earlier measurements remain only where an ADR rests on them. The
+  regeneration corrected one figure in ADR 018: the SQL time per run of 25
+  lead hours on the earlier cell table is 47.2–52.7 s, not 47.2–57.5 s (the
+  upper value had summed 27 partitions).
 - Verified on the same run: default suite 171 passed, Germany integration
   tests 5 passed, Germany acceptance tests 21 passed (14 new: the maxima and
   minima of every measure at all four levels are recomputed with plain
@@ -110,9 +115,6 @@ verification are below.
 ## Not included, next steps
 
 - A review and cut of the Germany tests is planned as a separate step.
-- `docs/germany-layer-facts.md` keeps the measurements of 9 Nov 2026 in their
-  dated sections; those of 14 Nov 2026 (static job, bridge rebuild, forecast
-  run, map export, tests) are added in a section of their own.
 - Per-cell values are kept so that checks 6 and 7 can run on them; they cost
   588 MB for two runs (ADR 018). If storage becomes an issue, the trade-off
   has to be revisited, and those checks redesigned before the cell table can

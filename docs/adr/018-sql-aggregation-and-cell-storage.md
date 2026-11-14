@@ -17,8 +17,9 @@ sum (numpy). The handover plan said to measure one run first and then decide.
 
 ### Aggregate in SQL
 
-Both versions were run on the same decoded fields for 77 partitions (three
-runs). SQL stages the four indicators in a temporary table, then one SQL
+Both versions were run on the same decoded fields for 102 partitions of four
+runs: three runs on the earlier wide cell table (77 partitions) and one on the
+slim layout that is in use now (25 partitions). SQL stages the four indicators in a temporary table, then one SQL
 function (`normalized.refresh_de_forecast_partition`) converts units, calls
 Berlin's `normalized.calculate_apparent_temperature_shade_c`, stores the cell
 values and area-weights them to Gemeinden. The numpy version was removed after
@@ -26,20 +27,24 @@ the measurement.
 
 | | SQL | numpy |
 | --- | ---: | ---: |
-| Seconds per partition, mean (copy and compute, plus storing Gemeinde and cell values for numpy) | 1.98 | 0.56 |
-| Seconds per run of 25 lead hours, without loading the bridge | 47.2 – 57.5 | 13.8 – 15.4 |
+| Seconds per partition, mean (copy and compute, plus storing Gemeinde and cell values for numpy), current slim layout | 2.21 | 0.58 |
+| Same, earlier wide cell table | 1.98 | 0.56 |
+| Seconds per run of 25 lead hours, without loading the bridge, slim layout | 55.3 | 14.5 |
+| Same, wide cell table (three runs) | 47.2 – 52.7 | 13.8 – 14.3 |
 | Largest difference between the two results | 1.4 × 10⁻¹⁴ °C (summation order) | |
 
 (Source: `docs/germany-layer-facts.md`, section "SQL vs. Python aggregation",
-measured 2026-11-09. The raw rows were exported to
+measured 2026-11-09. An earlier version of this table gave 47.2 – 57.5 s and
+13.8 – 15.4 s per run; the upper values summed 27 partitions, because lead 0
+of one run was measured three times. The raw rows were exported to
 `de_aggregation_benchmark-2026-11-09.csv`, 714 rows, outside the repository,
 before the benchmark table was dropped.)
 
-SQL is about 3.5 times slower per partition (1.98 s against 0.56 s), but
-the difference is small next to the rest of a run. A complete run of 25 lead
+SQL is about 3.8 times slower per partition on the slim layout (2.21 s
+against 0.58 s), but the difference is small next to the rest of a run. A complete run of 25 lead
 hours with SQL only, on 2026-11-14, took 141.5 s for the partitions (5.7 s per
 partition on average, including the DWD download and decoding) and 35.8 s to
-publish. numpy would save about 1.4 s per partition, about 35 s of the
+publish. numpy would save about 1.6 s per partition, about 41 s of the
 177 s, which does not change how the pipeline is operated. SQL follows the
 Berlin pipeline, keeps the unit conversion and the apparent-temperature
 formula in one place, and needs no second implementation to keep in line. The
