@@ -127,6 +127,7 @@ current run 2026-11-14 09:00 UTC.
 | Germany integration tests (`-m integration`) | 5 passed in 19.1 s |
 | Germany acceptance tests on the installed data | 21 passed in 230.2 s |
 | Same on the branch `germany-employment` (second theme) | default suite 181 passed, 56 deselected; Germany test cases 82 in 6 files (54 functions): 53 default, 6 integration (passed in 14.1 s), 23 acceptance (passed in 166.6 s) |
+| Same on the branch `germany-sectors` (third theme) | default suite 193 passed, 60 deselected; Germany test cases 98 in 7 files: 65 default, 7 integration (passed in 14.1 s), 26 acceptance (passed) |
 | `ruff check` | all checks passed |
 
 Diff against `main` outside the Germany paths: 5 files added, 46 modified;
@@ -179,6 +180,55 @@ Checks on this vintage, all passing:
 
 Map export with the employment theme (tiles exist): 21.3 s;
 `employment.json` 2,242,571 bytes, 247,945 gzip-compressed.
+
+## Sector theme: BA Regionalreport and WZ booklets (measured 14 Nov 2026)
+
+Files for 31 Mar 2026 (Regionalreport, WZ booklets) and 31 Mar 2025 (WZ
+booklets for the year-on-year change), on geography version
+`vg250-2022-12-31`.
+
+| Fact | Value |
+| --- | ---: |
+| Downloads for 31 Mar 2026: Kreis files + WZ booklets / requests / bytes / time (1.5 s pause) | 400 + 17 / 417 / 222,319,668 / 624.4 s |
+| Downloads for 31 Mar 2025: WZ booklets / bytes / time | 17 / 10,337,979 / 24.4 s |
+| Retries needed | 0 |
+| Files on disk: Regionalreport / WZ booklets | 212,590,275 / 20,215,764 bytes |
+| `raw.de_ba_regionalreport` rows: table 2.3 / table 2.1 (400 files × 5 quarters) | 52,000 / 120,000 |
+| Suppressed cells in table 2.3 (all Kreise, five quarters) | 1,278 |
+| `raw.de_ba_wz_heft` rows per quarter (17 booklets) / suppressed in column 1 | 6,120 / 915 (2026), 885 (2025) |
+| Sector rows in `normalized.de_indicator_value`: Kreise value / suppressed; Länder value / suppressed; Germany value | 44,788 / 1,212; 2,720 / 192; 182 |
+| Size `raw.de_ba_regionalreport` / `raw.de_ba_wz_heft` (heap + indexes) | 171 MB / 14 MB |
+| `run_sectors` with files on disk (raw load of both quarters, refresh, 4 checks) | 69.0 s |
+| Refresh `refresh_sectors` (catalogue, values, quality notes) | 3.1 s |
+
+Checks, all passing for the file date 31 Mar 2026:
+
+| Comparison | Result |
+| --- | --- |
+| Identities in table 2.3 (7 rules × 400 Kreise × 5 quarters) | 0 violations |
+| Σ Kreise = Land (16 Länder × 5 quarters) | 79 exact; 1 documented discrepancy (Hessen, 31 Mar 2026: Kreise 47,649 below the Land; Main-Kinzig-Kreis -34 % in one quarter) |
+| Land total, Regionalreport = WZ booklet (16 × 2 quarters) | 32 exact |
+| Kreis groups vs WZ divisions per Land (4 groups × 16 × 2 quarters) | 37 exact; 74 within bounds (one side with suppressed parts); 13 not comparable (both sides); 4 documented (Hessen 2026) |
+| Germany − Σ Länder (employees not assignable to a Land) | 2,285 (31 Mar 2025), 2,160 (30 Jun 2025), 1,979 (30 Sep 2025), 1,343 (31 Dec 2025), 2,140 (31 Mar 2026); WZ booklets the same for their quarters |
+| Germany − Σ Länder on 30 Jun 2025 vs the Gemeindedaten's unassigned row | 2,160 = 2,160 |
+| Kreis totals on 30 Jun 2025 vs Gemeindedaten employees at place of work | 400 of 400 exact |
+
+Share of metal, electrical and steel (WZ 24–30, 32, 33), 31 Mar 2026:
+
+| Level | With a share | Minimum | Median | Maximum | Above 40 % |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Kreise | 397 of 400 (suppressed: Wolfsburg, Ingolstadt, Passau) | 1.0 % | 11.2 % | 50.4 % (Tuttlingen) | 4 |
+| Länder (13 as sums of divisions, 3 as sums of Kreise) | 16 | 3.9 % (Berlin) | 10.1 % | 19.8 % (Baden-Württemberg) | 0 |
+| Germany | 1 | | 12.0 % | | |
+
+Germany, 31 Mar 2026: 4,193,440 employees in metal, electrical and steel of
+34,825,934; motor vehicles (29) 814,984, mechanical engineering (28)
+1,011,219, chemicals (20) 326,138, steel (24.1) 82,440. Suppressed at Land
+level: steel in 4 Länder, motor vehicles in 2, manufacturing as a whole in 4,
+intermediate goods in 2, consumer goods in 3.
+
+Map export: `sectors.json` 170,876 bytes; whole export with all three themes
+(tiles exist) 21.4 s.
 
 ## Earlier measurements that decisions rest on
 

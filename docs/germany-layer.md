@@ -2,8 +2,10 @@
 
 Extends the Berlin pipeline to Bund → Länder → Kreise → Gemeinden with the
 current 24-hour DWD ICON-D2-RUC forecast and Zensus 2022 total population
-(first theme) and with employment per Gemeinde from the Statistik der
-Bundesagentur für Arbeit (second theme, [below](#second-theme-employment)).
+(first theme), with employment per Gemeinde from the Statistik der
+Bundesagentur für Arbeit (second theme, [below](#second-theme-employment)) and
+with employees by sector per Kreis and Land (third theme,
+[below](#third-theme-sectors)).
 Berlin assets, views, sensor and outputs are unchanged; Germany objects carry
 the `de_` prefix. Sources and licences: [data-sources.md](data-sources.md).
 Measured numbers: [germany-layer-facts.md](germany-layer-facts.md).
@@ -106,6 +108,7 @@ uv run --env-file .env python -m src.export_germany_dashboard --serve
 | File in `web/germany-dashboard/data/` | Content | Rebuilt |
 | --- | --- | --- |
 | `vg250-2022-12-31.pmtiles` | Land, Kreis and Gemeinde outlines, zoom 4-10, property `key` = regional key only | once per geography version, or with `--rebuild-tiles` (needs `tippecanoe`) |
+| `sectors.json` | schema 1, newest quarter: per Kreis, Land and Germany the sector values of `analytical.de_current_sectors` (null where not published, with `status`; `basis` for Land groups; `quality_note`). Not written when the sector data is not loaded | every export |
 | `employment.json` | schema 1, newest BA reference date: per region `jobs_ratio` with `jobs_ratio_status`, and employees at place of work and of residence, commuters in and out, establishments (null where not published, with `status`); names come from `values.json` (same keys). Not written when the BA data is not loaded; the page then offers the temperature theme only | every export |
 | `values.json` | schema 2, current complete run: per region the 24-hour maximum and minimum of shade apparent temperature and air temperature with its lead hour (an index into `valid_times_berlin`; read from the `de_current_*_summary` views), residents, names. Keys are descriptive, e.g. `max_apparent_temperature_shade_population_weighted_c`, `min_temperature_c`. The `min_` keys were added without a schema change (still 2): the page enables Tiefstwerte only when they are present | every export |
 
@@ -225,6 +228,71 @@ details show the published values as delivered, the ratio marked as own
 calculation; the footer cites the BA and links its statistics homepage, as
 the terms of use ask.
 
+## Third theme: sectors
+
+Employees subject to social insurance at place of work by sector, quarterly,
+from two BA products (sources:
+[data-sources.md](data-sources.md#germany-layer-ba-sector-data-regionalreport-and-wz-booklets);
+decisions: [ADR 020](adr/020-sector-data-kreis-groups-and-land-divisions.md)):
+
+- **Kreise:** *Regionalreport über Beschäftigte*, one file per Kreis: WZ
+  sections and three manufacturing groups, among them "Metall- und
+  Elektroindustrie sowie Stahlindustrie" (WZ 24–30, 32, 33).
+- **Länder and Germany:** *Beschäftigte nach Wirtschaftszweigen*: every WZ
+  division, so motor vehicles (29), mechanical engineering (28), chemicals
+  (20) and steel (24.1) exactly.
+- **No Gemeinden:** the BA publishes no sector figures per Gemeinde. At Kreis
+  level the four industries exist only inside their groups.
+
+```bash
+# after run_static (needs the hierarchy): download, load and check one quarter
+uv run --env-file .env python -m src.germany.run_sectors                         # newest known: 2026-03-31
+uv run --env-file .env python -m src.germany.run_sectors --file-date 2026-06-30
+```
+
+`run_sectors` runs the Dagster job `germany_sectors`: the 17 WZ booklets for
+the quarter and for a year earlier, then one Regionalreport per Kreis, one
+request at a time with a 1.5 s pause and backoff on 429/5xx (434 files, about
+11 minutes for a new quarter; files on disk are not downloaded again and all
+are kept). Every file is checked against the structural contract before it is
+kept; one bad file stops the run. `ba_sectors_release_sensor` (off by
+default) sends two HEAD requests a day for the next quarter.
+
+| Step | Object | Notes |
+| --- | --- | --- |
+| Raw | `raw.de_ba_regionalreport`, `raw.de_ba_wz_heft` | as delivered; Regionalreport tables 2.1 and 2.3, one row per table row and quarter; WZ sheet "SVB - Tabelle I", columns 1–11 as text array |
+| Values | `normalized.de_indicator_value` | Kreise: 23 indicators of table 2.3 for every quarter (newest file wins); Länder and Germany: WZ total, 88 divisions, 24.1, "keine Angabe"; every value with a status |
+| Derived | `normalized.de_indicator_sum_component` | which WZ divisions make up each group at Land level (`wz_sum_*`, own calculations) |
+| Quality notes | `normalized.de_indicator_quality_note` | reviewed discrepancies in the BA's figures, from the contract; shown on the map |
+| Serving | `analytical.de_current_sectors` | newest quarter per Kreis, Land and Germany: total, manufacturing, the three groups (with `<group>_basis` at Land level: `sum_of_divisions` or `sum_of_kreise`), the share of metal, electrical and steel, the same group a year earlier, the four divisions (Land and Germany; `not_published_at_level` for Kreise), `quality_note` |
+
+| # | Check | Rule | Severity |
+| --- | --- | --- | --- |
+| 12 | `de_ba_sector_source_contract` | one complete Regionalreport per Kreis (all rows of table 2.3, five quarters); Land totals equal across the Kreis files of a Land; one WZ booklet per Land and Germany with the total and the four divisions | error |
+| 13 | `de_ba_sector_identities` | per Kreis and quarter: total = sections + unassigned; C = its three groups; N = without temporary agency work + temporary agency work; B–F and G–U = their sections; exact, or bounded where a part is suppressed | error |
+| 14 | `de_ba_sector_source_totals` | Σ Kreise = Land; Land totals and groups of the Regionalreport = WZ booklet; WZ divisions + "keine Angabe" = total; Germany = Σ Länder + employees not assignable to a Land (≤ 0.01 %, equal to the Gemeindedaten's unassigned row where both have the date); Kreis totals = Gemeindedaten employees at place of work; reviewed discrepancies accepted only at their documented size | error |
+| 15 | `de_ba_sector_key_coverage` | all 400 Kreise, 16 Länder and Germany have a total for the newest quarter | error |
+
+**Example query.** Kreise with the highest share of metal, electrical and
+steel:
+
+```sql
+SELECT region_name, metal_electrical_steel, employees_total,
+       ROUND(100 * metal_electrical_steel_share::numeric, 1) AS share_percent
+FROM analytical.de_current_sectors
+WHERE level = 'krs' AND metal_electrical_steel_share_status = 'value'
+ORDER BY metal_electrical_steel_share DESC
+LIMIT 10;
+```
+
+**On the map.** Theme "Industrie" (link `#industrie`), Kreis and Land level:
+the share of metal, electrical and steel on a fixed scale from 0 to 40 %
+(ColorBrewer Greens). Values the BA hides are grey with "von der BA
+geheimgehalten"; a Land sum with a hidden part reads "nicht berechenbar:
+Teilwerte von der BA geheimgehalten". Kreis details list the groups and say
+that the four industries are published only for Länder; Land details add
+them. A reviewed quality note appears with its Kreis.
+
 ## Decisions
 
 [ADR 014](adr/014-equal-area-projection-for-germany.md) equal-area projection ·
@@ -233,4 +301,5 @@ the terms of use ask.
 [ADR 017](adr/017-zensus-2022-population-and-source-checks.md) Zensus and source
 checks · [ADR 018](adr/018-sql-aggregation-and-cell-storage.md) SQL aggregation
 and cell storage · [ADR 019](adr/019-indicator-model-and-ba-gemeindedaten.md)
-indicator model and BA Gemeindedaten.
+indicator model and BA Gemeindedaten ·
+[ADR 020](adr/020-sector-data-kreis-groups-and-land-divisions.md) sector data.

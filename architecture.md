@@ -267,9 +267,10 @@ Berlin's ICON cell polygons (`normalized.icon_cell`) and the Berlin function
 objects. Operation and measurements are in
 [docs/germany-layer.md](docs/germany-layer.md); decisions are in ADRs
 [014](docs/adr/014-equal-area-projection-for-germany.md) to
-[019](docs/adr/019-indicator-model-and-ba-gemeindedaten.md). Two themes use
-the hierarchy: the temperature forecast and, since v2.1, employment per
-Gemeinde from the Statistik der Bundesagentur für Arbeit.
+[020](docs/adr/020-sector-data-kreis-groups-and-land-divisions.md). Three themes
+use the hierarchy: the temperature forecast, employment per Gemeinde (v2.1)
+and employees by sector per Kreis and Land (v2.2), the last two from the
+Statistik der Bundesagentur für Arbeit.
 
 ### Sources
 
@@ -278,15 +279,17 @@ Gemeinde from the Statistik der Bundesagentur für Arbeit.
 | BKG VG250 | Staat, Länder, Kreise, Gemeinden; status 31 Dec 2022, EPSG:25832 | Static (one vintage, checksum pinned) | Administrative hierarchy and geometry. |
 | Zensus 2022 table 1000A-1003 | Länder, Kreise, Gemeinden; reference date 15 May 2022 | Static (one census, checksum pinned) | Total population per region and the published totals for the source checks. |
 | DWD ICON-D2-RUC | Forecast run, lead time, grid cell | Rolling publication (shared with Berlin) | Temperature, humidity and wind fields. |
+| BA Regionalreport über Beschäftigte (product 709) | Kreise; quarterly, five quarters per file | Quarterly (about six months after the quarter); one file per Kreis; structure contract | WZ sections and three manufacturing groups. |
+| BA Beschäftigte nach Wirtschaftszweigen | Länder and Germany; quarterly | Quarterly; one file per Land; structure contract | Every WZ division (motor vehicles, mechanical engineering, chemicals, steel). |
 | BA Gemeindedaten (product 229) | Germany, Länder, Kreise, Gemeinden; reference date 30 June, territorial status of that date | Yearly (January); structure contract for every vintage, checksum pinned for the known one | Employees by place of residence and of work, commuters, establishments. |
 
 ### Relations by layer
 
 | Schema | Relations |
 | --- | --- |
-| `raw` | `de_vg250`, `de_zensus2022_population`, `de_ba_gemeindedaten` |
-| `normalized` | `de_land`, `de_kreis`, `de_gemeinde` (hierarchy, EPSG:3035 geometry, area), `de_gemeinde_population`, `de_zensus_published_population`, `de_icon_cell`, `de_icon_cell_gemeinde_bridge`, `de_forecast_run`, `de_icon_cell_value`, `de_gemeinde_forecast`; `de_indicator_source`, `de_indicator`, `de_indicator_value` (theme-independent indicators, ADR 019) |
-| `analytical` | `de_current_run`; `de_current_{gemeinde,kreis,land,bund}_forecast_25h`; `de_current_{gemeinde,kreis,land,bund}_summary`; `de_current_employment` |
+| `raw` | `de_vg250`, `de_zensus2022_population`, `de_ba_gemeindedaten`, `de_ba_regionalreport`, `de_ba_wz_heft` |
+| `normalized` | `de_land`, `de_kreis`, `de_gemeinde` (hierarchy, EPSG:3035 geometry, area), `de_gemeinde_population`, `de_zensus_published_population`, `de_icon_cell`, `de_icon_cell_gemeinde_bridge`, `de_forecast_run`, `de_icon_cell_value`, `de_gemeinde_forecast`; `de_indicator_source`, `de_indicator`, `de_indicator_value` (theme-independent indicators, ADR 019), `de_indicator_sum_component` (declared sums), `de_indicator_quality_note` (reviewed source discrepancies) |
+| `analytical` | `de_current_run`; `de_current_{gemeinde,kreis,land,bund}_forecast_25h`; `de_current_{gemeinde,kreis,land,bund}_summary`; `de_current_employment`; `de_current_sectors` |
 
 Kreis, Land and Bund values are rolled up from Gemeinden with an area and a
 population weighting (ADR 015). The `_summary` views hold the 24-hour maximum
@@ -297,13 +300,14 @@ lead times, the same switching rule as Berlin's 25-hour views.
 
 ### Orchestration
 
-Four jobs in the group `germany`:
+Five jobs in the group `germany`:
 
 | Job | Command | What it does |
 | --- | --- | --- |
 | `germany_static` | `python -m src.germany.run_static` | VG250 and Zensus raw loads, hierarchy, population, grid subset and bridge, checks 1–4. Safe to repeat: an existing geography version from the same file is left unchanged. |
 | `germany_forecast` | (one partition per lead time, started by the next command) | The four raw DWD fields (shared with Berlin, files only) and the Germany aggregation in SQL. |
 | `germany_forecast_publish` | `python -m src.germany.run_forecast --run-time …` | Runs all 25 lead times, then publishes, applies retention and runs checks 5–7. |
+| `germany_sectors` | `python -m src.germany.run_sectors [--file-date …]` | Downloads one quarter of both sector products (434 files, one request at a time with a pause and backoff), loads them raw, refreshes the sector values and runs checks 12–15. Started by `ba_sectors_release_sensor` (off by default) or by hand. |
 | `germany_employment` | `python -m src.germany.run_employment [--reference-date …]` | Downloads one BA vintage, loads it raw, refreshes the indicator values and runs checks 8–11. Started by `ba_gemeindedaten_release_sensor` (daily HEAD request for the next vintage; off by default) or by hand. |
 
 The Berlin availability sensor does not trigger these jobs and stays stopped
@@ -320,16 +324,21 @@ the published forecast. Two further checks pin the raw files to their
 checksums and counts. The employment theme adds four: the BA file's
 structure, identities between its columns, its keys against the hierarchy,
 and its Gemeinde, Kreis and Land values against its own published totals.
+The sector theme adds four more: the files' structure, identities within each
+Kreis, totals across Kreise, Länder, both products and the Gemeindedaten, and
+coverage of all Kreise and Länder.
 
 ### Map
 
 `python -m src.export_germany_dashboard` writes a static folder in
 `web/germany-dashboard/`: a PMTiles archive of Land, Kreis and Gemeinde
 outlines (built once per geography version), one `values.json` per run and
-one `employment.json` per BA vintage, joined in the browser by regional key
-(ADR 016). The page is in German and has two themes: temperature (24-hour
-maxima or minima on a fixed scale from -20 to +30 °C) and employment (jobs at
-place of work per employed resident on a fixed logarithmic scale). The host must answer HTTP Range requests; the local preview
+one `employment.json` per BA vintage and one `sectors.json` per quarter,
+joined in the browser by regional key (ADR 016). The page is in German and has
+three themes: temperature (24-hour maxima or minima on a fixed scale from -20
+to +30 °C), employment (jobs at place of work per employed resident on a fixed
+logarithmic scale) and industry (share of metal, electrical and steel per
+Kreis and Land, 0 to 40 %). The host must answer HTTP Range requests; the local preview
 (`src/germany/preview_server.py`) does.
 
 ### Things to know

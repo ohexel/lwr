@@ -3,8 +3,8 @@
 > **Two parts in one repository.** The original Berlin capstone (tag
 > `v1.0-capstone-submitted`) is described below. Since v2.0 the repository also
 > holds a **Germany layer** that extends the same pipeline to Bund, Länder,
-> Kreise and Gemeinden, with a temperature theme and, since v2.1, an
-> employment theme; see [Germany layer](#germany-layer) at the end.
+> Kreise and Gemeinden, with a temperature theme, an employment theme (v2.1)
+> and a sector theme (v2.2); see [Germany layer](#germany-layer) at the end.
 
 A reproducible geospatial data pipeline that combines current DWD temperature
 forecasts, 31 years of historical temperature, and official population data for
@@ -324,9 +324,12 @@ results against the sources, and shows them on a static MapLibre map. A
 second theme adds employment per Gemeinde from the Statistik der
 Bundesagentur für Arbeit (BA): employees by place of residence and of work,
 commuters and establishments, loaded into a theme-independent indicator model
-and checked against the BA's own published totals. Berlin tables, views, the
-sensor and the Berlin dashboard are unchanged; Germany objects carry the
-prefix `de_`.
+and checked against the BA's own published totals. A third theme adds
+employees by sector per Kreis and Land, quarterly, from two further BA
+products, so the share of jobs in the metal, electrical and steel industries
+and, per Land, in motor vehicles, mechanical engineering, chemicals and steel
+can be compared. Berlin tables, views, the sensor and the Berlin dashboard
+are unchanged; Germany objects carry the prefix `de_`.
 
 ![Germany map, Kreise: highest shade apparent temperature in the next 24 hours, area-weighted, on a fixed scale from -20 to +30 °C. Forecast run 2026-11-14 09:00 UTC.](docs/images/germany-map.png)
 
@@ -343,6 +346,15 @@ work per employee living there, by Kreis (BA, 30 June 2025; own
 calculation). Orange: more employed residents than jobs; purple: more jobs
 than employed residents.*
 
+![Germany map, Kreise: share of employees in the metal, electrical and steel industries, 31 March 2026, on a fixed scale from 0 to 40 %.](docs/images/germany-sectors-map.png)
+
+*Sector theme: share of employees at place of work in the metal, electrical
+and steel industries (WZ 2008 divisions 24–30, 32, 33), by Kreis (BA
+Regionalreport, 31 March 2026; own calculation). Grey: hidden by the BA
+(Wolfsburg, Ingolstadt, Passau). There are no sector figures per Gemeinde,
+and per Kreis motor vehicles, mechanical engineering and steel exist only
+inside this group; per Land they are published separately.*
+
 ### Run it
 
 ```bash
@@ -355,6 +367,9 @@ uv run --env-file .env python -m src.germany.run_forecast \
 
 # employment theme: download, load and check the BA Gemeindedaten (yearly)
 uv run --env-file .env python -m src.germany.run_employment
+
+# sector theme: 434 BA files per quarter, one request at a time (~11 minutes)
+uv run --env-file .env python -m src.germany.run_sectors
 
 # export the map and open a local preview (http://127.0.0.1:8766/)
 uv run --env-file .env python -m src.export_germany_dashboard --serve
@@ -397,6 +412,21 @@ LIMIT 10;
 Schweinfurt leads with 2.45 (54,018 jobs, 22,087 employed residents), then
 Wolfsburg with 2.16.
 
+The Kreise with the highest share of jobs in metal, electrical and steel
+(BA, 31 March 2026):
+
+```sql
+SELECT region_name, metal_electrical_steel, employees_total,
+       ROUND(100 * metal_electrical_steel_share::numeric, 1) AS share_percent
+FROM analytical.de_current_sectors
+WHERE level = 'krs' AND metal_electrical_steel_share_status = 'value'
+ORDER BY metal_electrical_steel_share DESC
+LIMIT 10;
+```
+
+Tuttlingen leads with 50.4 %, then Dingolfing-Landau (49.9 %) and Salzgitter
+(47.5 %).
+
 ### Checks against the sources
 
 | # | Check | What it tests |
@@ -419,6 +449,20 @@ checksums and counts. The employment theme adds:
 | 10 | `de_ba_key_coverage` | BA Gemeinde keys against VG250: only unincorporated areas and the mergers listed for the vintage |
 | 11 | `de_ba_source_totals` | Gemeinden add up to their Kreis (exactly where nothing is suppressed), Kreise to their Land, Länder plus the unassigned row to Germany |
 
+The sector theme adds:
+
+| # | Check | What it tests |
+| --- | --- | --- |
+| 12 | `de_ba_sector_source_contract` | one complete Regionalreport per Kreis and one WZ booklet per Land and Germany |
+| 13 | `de_ba_sector_identities` | sections, manufacturing groups and sector rows of each Kreis add up |
+| 14 | `de_ba_sector_source_totals` | Kreise to Land; Regionalreport to WZ booklets; Germany to Länder plus employees not assignable to a Land; Kreis totals to the Gemeindedaten; reviewed discrepancies only at their documented size |
+| 15 | `de_ba_sector_key_coverage` | all Kreise, Länder and Germany have values for the newest quarter |
+
+The checks found one discrepancy in the BA's own figures: on 31 March 2026
+the Kreise of Hessen fall 47,649 short of the Land, because Main-Kinzig-Kreis
+drops by a third in one quarter. The values are shown as published, with a
+note on the map (ADR 020).
+
 ### Adding a further theme
 
 The hierarchy does not change when a theme is added. A theme whose source
@@ -430,7 +474,8 @@ region (value, suppressed, not reported), a serving view, a source contract
 and checks against the source's own totals. The BA Gemeindedaten are the
 first source built this way. Candidates for the next step are the BA's
 quarterly reports per Kreis (employees by sector groups) and its pay
-statistics per Kreis.
+statistics per Kreis. The sector theme ([ADR 020](docs/adr/020-sector-data-kreis-groups-and-land-divisions.md))
+uses the same tables for two sources at the levels they publish.
 
 ### Limitations
 
@@ -446,6 +491,11 @@ statistics per Kreis.
   reference date, the map that of 2022: 38 Gemeinden merged since then have
   no value, and a Gemeinde that absorbed another shows its larger 2025 value
   on its 2022 outline.
+- Sectors: no figures per Gemeinde. Per Kreis the BA publishes only groups:
+  motor vehicles, mechanical engineering and steel are part of "metal,
+  electrical and steel", chemicals part of "intermediate goods" (with paper,
+  glass and plastics). The four industries are separate only per Land and for
+  Germany. Land values of the groups are sums (own calculation).
 - The values are measurements: no thresholds, classes or exposure scores.
 - A portfolio project run on a local machine, not an operated service.
 
@@ -458,7 +508,11 @@ ICON-D2-RUC, CC BY 4.0. Employment: Statistik der Bundesagentur für Arbeit,
 Gemeindedaten der sozialversicherungspflichtig Beschäftigten nach Wohn- und
 Arbeitsort, Stichtag 30.6.2025 (<https://statistik.arbeitsagentur.de/>); the
 ratio of place of work to place of residence is this project's own
-calculation. Aggregation by this project; not an official publication. Sources, checksums and licences are listed in
+calculation. Sectors: Statistik der Bundesagentur für Arbeit, Regionalreport
+über Beschäftigte (Quartalszahlen) and Beschäftigte nach Wirtschaftszweigen
+(WZ 2008) (Quartalszahlen); shares and Land sums of the groups are this
+project's own calculations. Aggregation by this project; not an official
+publication. Sources, checksums and licences are listed in
 [docs/data-sources.md](docs/data-sources.md).
 
 ### Decisions
@@ -472,4 +526,6 @@ and source checks),
 [ADR 018](docs/adr/018-sql-aggregation-and-cell-storage.md) (SQL aggregation
 and cell storage),
 [ADR 019](docs/adr/019-indicator-model-and-ba-gemeindedaten.md) (indicator
-model and BA Gemeindedaten).
+model and BA Gemeindedaten),
+[ADR 020](docs/adr/020-sector-data-kreis-groups-and-land-divisions.md) (sector
+data).

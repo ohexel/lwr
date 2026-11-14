@@ -28,6 +28,10 @@ and serving contract are shaped as they are.
 
 - ADR 019: [A theme-independent indicator model, filled first with the BA Gemeindedaten](019-indicator-model-and-ba-gemeindedaten.md)
 
+## Germany layer, third theme (v2.2)
+
+- ADR 020: [Sector data from two BA products, Kreis groups and Land divisions](020-sector-data-kreis-groups-and-land-divisions.md)
+
 Earlier working notes or development-era ADRs may remain in this directory as
 project detail. The records linked above describe the supported handoff state;
 the authoritative operational commands are in [../../runbook.md](../../runbook.md).

@@ -395,6 +395,48 @@ sozialversicherungspflichtig Beschäftigten nach Wohn- und Arbeitsort,
 Nürnberg, Stichtag: 30.6.2025
 ```
 
+## Germany layer: BA sector data (Regionalreport and WZ booklets)
+
+Two quarterly products of the Statistik der Bundesagentur für Arbeit, both
+employees subject to social insurance at place of work, both without login
+(ADR 020). Terms of use and suppression as for the Gemeindedaten above.
+
+**Regionalreport über Beschäftigte (Quartalszahlen)**, product 709, one xlsx
+per Kreis:
+`https://statistik.arbeitsagentur.de/Statistikdaten/Detail/<YYYYMM>/iiia6/beschaeftigung-reg-bst-reg/bst-reg-<Kreis key>-0-<YYYYMM>-xlsx.xlsx?__blob=publicationFile&v=1`.
+The pattern works for Landkreise, kreisfreie Städte, Berlin (11000) and
+Hamburg (02000). Each file holds five quarters (the reference quarter and the
+four before it). Used: table 2.3 (WZ 2008 sections plus three manufacturing
+groups and the sectors A, B–F, G–U) and table 2.1 (totals of the Kreis, its
+Land, West or East Germany and Germany; also a block "am Wohnort", which
+confirms that the other blocks count place of work). Not loaded: the share
+and change columns (derivable) and the other tables. The 31 Mar 2026 files
+were created on 10 Oct 2026; the next quarter is announced for 10 Jan 2027.
+The three manufacturing groups:
+
+| Group in table 2.3 | WZ 2008 divisions |
+| --- | --- |
+| Herstellung von überwiegend häuslich konsumierten Gütern | 10–15, 18, 21, 31 |
+| Metall- und Elektroindustrie sowie Stahlindustrie | 24–30, 32, 33 |
+| Herstellung von Vorleistungsgütern, insbesondere von chemischen Erzeugnissen und Kunststoffwaren | 16, 17, 19, 20, 22, 23 |
+
+**Beschäftigte nach Wirtschaftszweigen (WZ 2008) (Quartalszahlen)**, one xlsx
+per Land (`01`–`16`) and for Germany (`d`):
+`https://statistik.arbeitsagentur.de/Statistikdaten/Detail/<YYYYMM>/iiia6/beschaeftigung-sozbe-wz-heft/wz-heft-<LL>-0-<YYYYMM>-xlsx.xlsx?__blob=publicationFile&v=1`.
+Used: sheet "SVB - Tabelle I", column 1 (Insgesamt) of the total, the 88
+divisions, group 241 (Erzeugung von Roheisen, Stahl und Ferrolegierungen) and
+"XX Keine Angabe"; the other columns (sex, nationality, age, apprentices)
+and the 3-digit groups stay in raw. One quarter per file; the booklets of the
+same quarter a year earlier are loaded for the year-on-year change.
+
+- Loaded into: `raw.de_ba_regionalreport` and `raw.de_ba_wz_heft` (values as
+  delivered text, `*` kept), then `normalized.de_indicator_value`.
+- Citations (*Zitierhinweis*, per file): "Statistik der Bundesagentur für
+  Arbeit, Tabellen, Regionalreport über Beschäftigte (Quartalszahlen),
+  <service centre>, <month>" and "Statistik der Bundesagentur für Arbeit,
+  Tabellen, Beschäftigte nach Wirtschaftszweigen (WZ 2008)
+  (Quartalszahlen)".
+
 ## Combined attribution
 
 When presenting the serving dataset or its downloadable derivatives, a concise
