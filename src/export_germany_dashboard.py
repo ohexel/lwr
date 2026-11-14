@@ -84,26 +84,33 @@ JOIN normalized.de_gemeinde AS g
 ORDER BY s.ars
 """
 
-ROLLUP_QUERIES = {
+SUMMARY_QUERIES = {
     "krs": """
-        SELECT kreis_key, kreis_name, land_key, lead_hour,
-               temperature_area_weighted_c, temperature_population_weighted_c,
-               apparent_temperature_shade_area_weighted_c,
-               apparent_temperature_shade_population_weighted_c,
+        SELECT kreis_key, kreis_name, land_key, lead_time_count,
+               max_temperature_area_weighted_c, max_temperature_area_weighted_lead_hour,
+               max_temperature_population_weighted_c, max_temperature_population_weighted_lead_hour,
+               max_apparent_temperature_shade_area_weighted_c, max_apparent_temperature_shade_area_weighted_lead_hour,
+               max_apparent_temperature_shade_population_weighted_c, max_apparent_temperature_shade_population_weighted_lead_hour,
                population_total, gemeinde_count
-        FROM analytical.de_current_kreis_forecast_25h
-        ORDER BY kreis_key, lead_hour
+        FROM analytical.de_current_kreis_summary
+        ORDER BY kreis_key
     """,
     "lan": """
-        SELECT land_key, land_name, NULL::text, lead_hour,
-               temperature_area_weighted_c, temperature_population_weighted_c,
-               apparent_temperature_shade_area_weighted_c,
-               apparent_temperature_shade_population_weighted_c,
+        SELECT land_key, land_name, NULL::text, lead_time_count,
+               max_temperature_area_weighted_c, max_temperature_area_weighted_lead_hour,
+               max_temperature_population_weighted_c, max_temperature_population_weighted_lead_hour,
+               max_apparent_temperature_shade_area_weighted_c, max_apparent_temperature_shade_area_weighted_lead_hour,
+               max_apparent_temperature_shade_population_weighted_c, max_apparent_temperature_shade_population_weighted_lead_hour,
                population_total, gemeinde_count
-        FROM analytical.de_current_land_forecast_25h
-        ORDER BY land_key, lead_hour
+        FROM analytical.de_current_land_summary
+        ORDER BY land_key
     """,
 }
+
+BUND_QUERY = """
+SELECT max_apparent_temperature_shade_area_weighted_c, max_apparent_temperature_shade_area_weighted_lead_hour, max_apparent_temperature_shade_population_weighted_c, max_apparent_temperature_shade_population_weighted_lead_hour
+FROM analytical.de_current_bund_summary
+"""
 
 KREIS_TYPE_QUERY = """
 SELECT kreis_key, kreis_type FROM normalized.de_kreis WHERE geography_version = %s
@@ -121,56 +128,34 @@ def _round(value: object, digits: int = 2) -> float | None:
     return round(number, digits)
 
 
-def _argmax(values: list[float]) -> int:
-    # First lead hour with the maximum, matching de_current_gemeinde_summary.
-    best = 0
-    for index, value in enumerate(values):
-        if value > values[best]:
-            best = index
-    return best
-
-
 def _berlin_label(value: datetime) -> str:
     return value.strftime("%Y-%m-%dT%H:%M")
 
 
-def rollup_records(rows: list[tuple]) -> dict[str, dict[str, object]]:
-    """Per region: 24-hour maxima (and their lead hour) of both weightings."""
-    series: dict[str, dict[str, object]] = {}
-    for key, name, parent, lead, t_area, t_pop, a_area, a_pop, population, count in rows:
-        entry = series.setdefault(
-            key,
-            {"name": name, "parent": parent, "population": population,
-             "gemeinden": count, "t_area": [], "t_pop": [], "a_area": [], "a_pop": [],
-             "leads": []},
-        )
-        entry["leads"].append(lead)
-        for field, value in (("t_area", t_area), ("t_pop", t_pop),
-                             ("a_area", a_area), ("a_pop", a_pop)):
-            entry[field].append(value)
+# Order of the measures in SUMMARY_QUERIES (value, lead hour) pairs.
+SUMMARY_FIELDS = ("t_area", "t_pop", "a_area", "a_pop")
 
+
+def summary_records(rows: list[tuple]) -> dict[str, dict[str, object]]:
+    """Per region: 24-hour maxima (and their lead hour) of both weightings,
+    as computed by the analytical.de_current_*_summary views."""
     records: dict[str, dict[str, object]] = {}
-    for key, entry in series.items():
-        if entry["leads"] != list(range(EXPECTED_LEAD_COUNT)):
-            raise ValueError(f"{key}: lead hours {entry['leads']} are incomplete")
-        record: dict[str, object] = {
-            "n": entry["name"],
-            "p": entry["population"],
-            "g": entry["gemeinden"],
-        }
-        if entry["parent"] is not None:
-            record["l"] = entry["parent"]
-        for field in ("t_area", "t_pop", "a_area", "a_pop"):
-            values = entry[field]
-            if any(v is None for v in values):
-                if field.endswith("_pop") and all(v is None for v in values):
+    for key, name, parent, lead_count, *rest in rows:
+        measures, population, count = rest[:-2], rest[-2], rest[-1]
+        if lead_count != EXPECTED_LEAD_COUNT:
+            raise ValueError(f"{key}: {lead_count} lead hours, expected {EXPECTED_LEAD_COUNT}")
+        record: dict[str, object] = {"n": name, "p": population, "g": count}
+        if parent is not None:
+            record["l"] = parent
+        for field, value, hour in zip(SUMMARY_FIELDS, measures[0::2], measures[1::2]):
+            if value is None:
+                if field.endswith("_pop"):
                     record[field] = None
                     record[field + "_h"] = None
                     continue
                 raise ValueError(f"{key}: missing {field}")
-            hour = _argmax(values)
-            record[field] = _round(values[hour])
-            record[field + "_h"] = hour
+            record[field] = _round(value)
+            record[field + "_h"] = int(hour)
         records[key] = record
     return records
 
@@ -213,11 +198,11 @@ def collect_values(connection: psycopg.Connection) -> dict[str, object]:
             "b": bez,
         }
 
-    kreise = rollup_records(connection.execute(ROLLUP_QUERIES["krs"]).fetchall())
+    kreise = summary_records(connection.execute(SUMMARY_QUERIES["krs"]).fetchall())
     for key, kreis_type in connection.execute(KREIS_TYPE_QUERY, (geography_version,)):
         if key in kreise:
             kreise[key]["b"] = kreis_type
-    laender = rollup_records(connection.execute(ROLLUP_QUERIES["lan"]).fetchall())
+    laender = summary_records(connection.execute(SUMMARY_QUERIES["lan"]).fetchall())
 
     by_level = {"gem": gemeinden, "krs": kreise, "lan": laender}
     for level, records in by_level.items():
@@ -226,8 +211,9 @@ def collect_values(connection: psycopg.Connection) -> dict[str, object]:
                 f"{level}: {len(records)} regions, expected {EXPECTED_COUNTS[level]}"
             )
 
-    bund_a_area = [row[5] for row in leads]
-    bund_a_pop = [row[6] for row in leads]
+    bund_a_area, bund_a_area_h, bund_a_pop, bund_a_pop_h = connection.execute(
+        BUND_QUERY
+    ).fetchone()
     all_apparent = [r["a"] for r in gemeinden.values()]
     return {
         "schema": 1,
@@ -241,10 +227,10 @@ def collect_values(connection: psycopg.Connection) -> dict[str, object]:
             math.floor(min(all_apparent)), math.ceil(max(all_apparent))
         ],
         "bund": {
-            "a_area": _round(max(bund_a_area)),
-            "a_area_h": _argmax(bund_a_area),
-            "a_pop": _round(max(bund_a_pop)),
-            "a_pop_h": _argmax(bund_a_pop),
+            "a_area": _round(bund_a_area),
+            "a_area_h": int(bund_a_area_h),
+            "a_pop": _round(bund_a_pop),
+            "a_pop_h": int(bund_a_pop_h),
             "p": leads[0][7],
         },
         "lan": laender,

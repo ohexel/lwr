@@ -12,9 +12,7 @@ import pytest
 
 from src.export_germany_dashboard import (
     DASHBOARD_SOURCE,
-    EXPECTED_LEAD_COUNT,
     PUBLIC_ASSETS,
-    rollup_records,
 )
 from src.germany.preview_server import RangeRequestHandler, parse_range
 
@@ -81,40 +79,6 @@ def test_preview_server_answers_range_requests(tmp_path: Path) -> None:
     finally:
         server.shutdown()
         server.server_close()
-
-
-# ---------------------------------------------------------------------------
-# Roll-up maxima
-# ---------------------------------------------------------------------------
-def _rows(key, apparent, population_weighted=True):
-    return [
-        (key, "Name", "99", hour, apparent[hour] + 1, apparent[hour] + 1 if population_weighted else None,
-         apparent[hour], apparent[hour] if population_weighted else None, 1000, 3)
-        for hour in range(EXPECTED_LEAD_COUNT)
-    ]
-
-
-def test_rollup_records_take_first_maximum_and_its_hour() -> None:
-    apparent = [0.0] * EXPECTED_LEAD_COUNT
-    apparent[5] = 7.123
-    apparent[9] = 7.123  # tie: the earlier hour wins, as in the SQL summary
-    record = rollup_records(_rows("99001", apparent))["99001"]
-    assert record["a_area"] == 7.12
-    assert record["a_area_h"] == 5
-    assert record["t_area"] == 8.12
-    assert record["l"] == "99"
-
-
-def test_rollup_records_without_population_weights_are_none_not_zero() -> None:
-    record = rollup_records(_rows("99001", [1.0] * EXPECTED_LEAD_COUNT, False))["99001"]
-    assert record["a_pop"] is None
-    assert record["a_pop_h"] is None
-    assert record["a_area"] == 1.0
-
-
-def test_rollup_records_reject_incomplete_runs() -> None:
-    with pytest.raises(ValueError, match="incomplete"):
-        rollup_records(_rows("99001", [1.0] * EXPECTED_LEAD_COUNT)[:-1])
 
 
 # ---------------------------------------------------------------------------

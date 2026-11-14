@@ -85,8 +85,8 @@ def normalized_de_gemeinde_forecast(context: dg.AssetExecutionContext) -> None:
     description=(
         "Publishes the current complete Germany forecast: the de_current_* "
         "views (Gemeinde, Kreis, Land, Bund; area- and population-weighted "
-        "roll-ups; Gemeinde summary) and applies retention (newest complete "
-        "run plus the previous one)."
+        "roll-ups; Gemeinde, Kreis, Land and Bund 24-hour summaries) and "
+        "applies retention (newest complete run plus the previous one)."
     ),
 )
 def analytical_de_current_forecast_25h(context: dg.AssetExecutionContext) -> None:
@@ -109,6 +109,8 @@ def analytical_de_current_forecast_25h(context: dg.AssetExecutionContext) -> Non
                 (SELECT COUNT(*) FROM analytical.de_current_land_forecast_25h),
                 (SELECT COUNT(*) FROM analytical.de_current_bund_forecast_25h),
                 (SELECT COUNT(*) FROM analytical.de_current_gemeinde_summary),
+                (SELECT COUNT(*) FROM analytical.de_current_kreis_summary),
+                (SELECT COUNT(*) FROM analytical.de_current_land_summary),
                 (SELECT COUNT(DISTINCT run_time_utc) FROM normalized.de_gemeinde_forecast),
                 pg_total_relation_size('normalized.de_icon_cell_value'),
                 pg_total_relation_size('normalized.de_gemeinde_forecast')
@@ -125,9 +127,11 @@ def analytical_de_current_forecast_25h(context: dg.AssetExecutionContext) -> Non
             "land_rows": int(counts[2]),
             "bund_rows": int(counts[3]),
             "gemeinde_summary_rows": int(counts[4]),
-            "retained_runs": int(counts[5]),
-            "cell_value_bytes": int(counts[6]),
-            "gemeinde_forecast_bytes": int(counts[7]),
+            "kreis_summary_rows": int(counts[5]),
+            "land_summary_rows": int(counts[6]),
+            "retained_runs": int(counts[7]),
+            "cell_value_bytes": int(counts[8]),
+            "gemeinde_forecast_bytes": int(counts[9]),
         }
     )
 

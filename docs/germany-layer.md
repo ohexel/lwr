@@ -35,7 +35,7 @@ Germany jobs and stays stopped by default.
 | Bridge | `normalized.de_icon_cell_gemeinde_bridge` | intersection area and `fraction_of_gemeinde`, versioned by geography and grid |
 | Cell forecast | `normalized.de_forecast_run`, `normalized.de_icon_cell_value` | one row per run (geography version, grid) and one row per run, lead hour and cell: temperature and shade apparent temperature, computed with Berlin's units and `normalized.calculate_apparent_temperature_shade_c`; lead-time label and valid time are derived from the lead hour |
 | Gemeinde forecast | `normalized.de_gemeinde_forecast` | area-weighted from cells, like Berlin's PLR values |
-| Serving | `analytical.de_current_{gemeinde,kreis,land,bund}_forecast_25h`, `analytical.de_current_gemeinde_summary` | newest run with every Gemeinde × 25 lead times |
+| Serving | `analytical.de_current_{gemeinde,kreis,land,bund}_forecast_25h`, `analytical.de_current_{gemeinde,kreis,land,bund}_summary` | newest run with every Gemeinde × 25 lead times; the summaries hold the 24-hour maximum of each measure with its time (one rule for all four levels: highest value, earliest time on a tie) |
 
 Kreis, Land and Bund values are served twice: weighted by Gemeinde area (equal
 to direct area weighting, because Gemeinden partition their Kreis in VG250)
@@ -104,7 +104,7 @@ uv run --env-file .env python -m src.export_germany_dashboard --serve
 | File in `web/germany-dashboard/data/` | Content | Rebuilt |
 | --- | --- | --- |
 | `vg250-2022-12-31.pmtiles` | Land, Kreis and Gemeinde outlines, zoom 4-10, property `k` = regional key only | once per geography version, or with `--rebuild-tiles` (needs `tippecanoe`) |
-| `values.json` | current complete run: per region the 24-hour maximum of shade apparent temperature and air temperature with their hour, residents, names, a point inside the region | every export |
+| `values.json` | current complete run: per region the 24-hour maximum of shade apparent temperature and air temperature with their hour (read from the `de_current_*_summary` views), residents, names | every export |
 
 Generated files are git-ignored. The page joins values to outlines with
 MapLibre feature-state (`promoteId: "k"`), so tiles are never rebuilt per run.

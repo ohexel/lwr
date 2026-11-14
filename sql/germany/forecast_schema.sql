@@ -450,6 +450,180 @@ JOIN ranked AS a ON a.ars = t.ars AND a.apparent_rank = 1
 WHERE t.temperature_rank = 1;
 
 -- ---------------------------------------------------------------------------
+-- Kreis, Land and Bund summaries: 24-hour maximum of each served measure, the
+-- Berlin time and the lead hour of its first occurrence (same rule as the
+-- Gemeinde summary: highest value, earliest time on a tie; NULL when the
+-- measure is NULL in every lead hour).
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE VIEW analytical.de_current_kreis_summary AS
+WITH ranked AS (
+    SELECT
+        k.*,
+        ROW_NUMBER() OVER (PARTITION BY k.kreis_key
+            ORDER BY k.temperature_area_weighted_c DESC NULLS LAST, k.valid_time_utc) AS t_area_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.kreis_key
+            ORDER BY k.temperature_population_weighted_c DESC NULLS LAST, k.valid_time_utc) AS t_pop_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.kreis_key
+            ORDER BY k.apparent_temperature_shade_area_weighted_c DESC NULLS LAST, k.valid_time_utc) AS a_area_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.kreis_key
+            ORDER BY k.apparent_temperature_shade_population_weighted_c DESC NULLS LAST, k.valid_time_utc) AS a_pop_rank
+    FROM analytical.de_current_kreis_forecast_25h AS k
+)
+SELECT
+    r.kreis_key,
+    MIN(r.kreis_name) AS kreis_name,
+    MIN(r.land_key) AS land_key,
+    MIN(r.land_name) AS land_name,
+    MIN(r.run_time_utc) AS run_time_utc,
+    MAX(r.temperature_area_weighted_c) FILTER (WHERE r.t_area_rank = 1)
+        AS max_temperature_area_weighted_c,
+    MAX(r.valid_time_berlin) FILTER (
+        WHERE r.t_area_rank = 1 AND r.temperature_area_weighted_c IS NOT NULL)
+        AS max_temperature_area_weighted_at_berlin,
+    MAX(r.lead_hour) FILTER (
+        WHERE r.t_area_rank = 1 AND r.temperature_area_weighted_c IS NOT NULL)
+        AS max_temperature_area_weighted_lead_hour,
+    MAX(r.temperature_population_weighted_c) FILTER (WHERE r.t_pop_rank = 1)
+        AS max_temperature_population_weighted_c,
+    MAX(r.valid_time_berlin) FILTER (
+        WHERE r.t_pop_rank = 1 AND r.temperature_population_weighted_c IS NOT NULL)
+        AS max_temperature_population_weighted_at_berlin,
+    MAX(r.lead_hour) FILTER (
+        WHERE r.t_pop_rank = 1 AND r.temperature_population_weighted_c IS NOT NULL)
+        AS max_temperature_population_weighted_lead_hour,
+    MAX(r.apparent_temperature_shade_area_weighted_c) FILTER (WHERE r.a_area_rank = 1)
+        AS max_apparent_temperature_shade_area_weighted_c,
+    MAX(r.valid_time_berlin) FILTER (
+        WHERE r.a_area_rank = 1 AND r.apparent_temperature_shade_area_weighted_c IS NOT NULL)
+        AS max_apparent_temperature_shade_area_weighted_at_berlin,
+    MAX(r.lead_hour) FILTER (
+        WHERE r.a_area_rank = 1 AND r.apparent_temperature_shade_area_weighted_c IS NOT NULL)
+        AS max_apparent_temperature_shade_area_weighted_lead_hour,
+    MAX(r.apparent_temperature_shade_population_weighted_c) FILTER (WHERE r.a_pop_rank = 1)
+        AS max_apparent_temperature_shade_population_weighted_c,
+    MAX(r.valid_time_berlin) FILTER (
+        WHERE r.a_pop_rank = 1 AND r.apparent_temperature_shade_population_weighted_c IS NOT NULL)
+        AS max_apparent_temperature_shade_population_weighted_at_berlin,
+    MAX(r.lead_hour) FILTER (
+        WHERE r.a_pop_rank = 1 AND r.apparent_temperature_shade_population_weighted_c IS NOT NULL)
+        AS max_apparent_temperature_shade_population_weighted_lead_hour,
+    MIN(r.population_total) AS population_total,
+    MIN(r.gemeinde_count) AS gemeinde_count,
+    COUNT(*) AS lead_time_count
+FROM ranked AS r
+GROUP BY r.kreis_key;
+
+CREATE OR REPLACE VIEW analytical.de_current_land_summary AS
+WITH ranked AS (
+    SELECT
+        k.*,
+        ROW_NUMBER() OVER (PARTITION BY k.land_key
+            ORDER BY k.temperature_area_weighted_c DESC NULLS LAST, k.valid_time_utc) AS t_area_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.land_key
+            ORDER BY k.temperature_population_weighted_c DESC NULLS LAST, k.valid_time_utc) AS t_pop_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.land_key
+            ORDER BY k.apparent_temperature_shade_area_weighted_c DESC NULLS LAST, k.valid_time_utc) AS a_area_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.land_key
+            ORDER BY k.apparent_temperature_shade_population_weighted_c DESC NULLS LAST, k.valid_time_utc) AS a_pop_rank
+    FROM analytical.de_current_land_forecast_25h AS k
+)
+SELECT
+    r.land_key,
+    MIN(r.land_name) AS land_name,
+    MIN(r.run_time_utc) AS run_time_utc,
+    MAX(r.temperature_area_weighted_c) FILTER (WHERE r.t_area_rank = 1)
+        AS max_temperature_area_weighted_c,
+    MAX(r.valid_time_berlin) FILTER (
+        WHERE r.t_area_rank = 1 AND r.temperature_area_weighted_c IS NOT NULL)
+        AS max_temperature_area_weighted_at_berlin,
+    MAX(r.lead_hour) FILTER (
+        WHERE r.t_area_rank = 1 AND r.temperature_area_weighted_c IS NOT NULL)
+        AS max_temperature_area_weighted_lead_hour,
+    MAX(r.temperature_population_weighted_c) FILTER (WHERE r.t_pop_rank = 1)
+        AS max_temperature_population_weighted_c,
+    MAX(r.valid_time_berlin) FILTER (
+        WHERE r.t_pop_rank = 1 AND r.temperature_population_weighted_c IS NOT NULL)
+        AS max_temperature_population_weighted_at_berlin,
+    MAX(r.lead_hour) FILTER (
+        WHERE r.t_pop_rank = 1 AND r.temperature_population_weighted_c IS NOT NULL)
+        AS max_temperature_population_weighted_lead_hour,
+    MAX(r.apparent_temperature_shade_area_weighted_c) FILTER (WHERE r.a_area_rank = 1)
+        AS max_apparent_temperature_shade_area_weighted_c,
+    MAX(r.valid_time_berlin) FILTER (
+        WHERE r.a_area_rank = 1 AND r.apparent_temperature_shade_area_weighted_c IS NOT NULL)
+        AS max_apparent_temperature_shade_area_weighted_at_berlin,
+    MAX(r.lead_hour) FILTER (
+        WHERE r.a_area_rank = 1 AND r.apparent_temperature_shade_area_weighted_c IS NOT NULL)
+        AS max_apparent_temperature_shade_area_weighted_lead_hour,
+    MAX(r.apparent_temperature_shade_population_weighted_c) FILTER (WHERE r.a_pop_rank = 1)
+        AS max_apparent_temperature_shade_population_weighted_c,
+    MAX(r.valid_time_berlin) FILTER (
+        WHERE r.a_pop_rank = 1 AND r.apparent_temperature_shade_population_weighted_c IS NOT NULL)
+        AS max_apparent_temperature_shade_population_weighted_at_berlin,
+    MAX(r.lead_hour) FILTER (
+        WHERE r.a_pop_rank = 1 AND r.apparent_temperature_shade_population_weighted_c IS NOT NULL)
+        AS max_apparent_temperature_shade_population_weighted_lead_hour,
+    MIN(r.population_total) AS population_total,
+    MIN(r.gemeinde_count) AS gemeinde_count,
+    COUNT(*) AS lead_time_count
+FROM ranked AS r
+GROUP BY r.land_key;
+
+CREATE OR REPLACE VIEW analytical.de_current_bund_summary AS
+WITH ranked AS (
+    SELECT
+        k.*,
+        ROW_NUMBER() OVER (PARTITION BY k.run_time_utc
+            ORDER BY k.temperature_area_weighted_c DESC NULLS LAST, k.valid_time_utc) AS t_area_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.run_time_utc
+            ORDER BY k.temperature_population_weighted_c DESC NULLS LAST, k.valid_time_utc) AS t_pop_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.run_time_utc
+            ORDER BY k.apparent_temperature_shade_area_weighted_c DESC NULLS LAST, k.valid_time_utc) AS a_area_rank,
+        ROW_NUMBER() OVER (PARTITION BY k.run_time_utc
+            ORDER BY k.apparent_temperature_shade_population_weighted_c DESC NULLS LAST, k.valid_time_utc) AS a_pop_rank
+    FROM analytical.de_current_bund_forecast_25h AS k
+)
+SELECT
+    r.run_time_utc,
+    MAX(r.temperature_area_weighted_c) FILTER (WHERE r.t_area_rank = 1)
+        AS max_temperature_area_weighted_c,
+    MAX(r.valid_time_berlin) FILTER (
+        WHERE r.t_area_rank = 1 AND r.temperature_area_weighted_c IS NOT NULL)
+        AS max_temperature_area_weighted_at_berlin,
+    MAX(r.lead_hour) FILTER (
+        WHERE r.t_area_rank = 1 AND r.temperature_area_weighted_c IS NOT NULL)
+        AS max_temperature_area_weighted_lead_hour,
+    MAX(r.temperature_population_weighted_c) FILTER (WHERE r.t_pop_rank = 1)
+        AS max_temperature_population_weighted_c,
+    MAX(r.valid_time_berlin) FILTER (
+        WHERE r.t_pop_rank = 1 AND r.temperature_population_weighted_c IS NOT NULL)
+        AS max_temperature_population_weighted_at_berlin,
+    MAX(r.lead_hour) FILTER (
+        WHERE r.t_pop_rank = 1 AND r.temperature_population_weighted_c IS NOT NULL)
+        AS max_temperature_population_weighted_lead_hour,
+    MAX(r.apparent_temperature_shade_area_weighted_c) FILTER (WHERE r.a_area_rank = 1)
+        AS max_apparent_temperature_shade_area_weighted_c,
+    MAX(r.valid_time_berlin) FILTER (
+        WHERE r.a_area_rank = 1 AND r.apparent_temperature_shade_area_weighted_c IS NOT NULL)
+        AS max_apparent_temperature_shade_area_weighted_at_berlin,
+    MAX(r.lead_hour) FILTER (
+        WHERE r.a_area_rank = 1 AND r.apparent_temperature_shade_area_weighted_c IS NOT NULL)
+        AS max_apparent_temperature_shade_area_weighted_lead_hour,
+    MAX(r.apparent_temperature_shade_population_weighted_c) FILTER (WHERE r.a_pop_rank = 1)
+        AS max_apparent_temperature_shade_population_weighted_c,
+    MAX(r.valid_time_berlin) FILTER (
+        WHERE r.a_pop_rank = 1 AND r.apparent_temperature_shade_population_weighted_c IS NOT NULL)
+        AS max_apparent_temperature_shade_population_weighted_at_berlin,
+    MAX(r.lead_hour) FILTER (
+        WHERE r.a_pop_rank = 1 AND r.apparent_temperature_shade_population_weighted_c IS NOT NULL)
+        AS max_apparent_temperature_shade_population_weighted_lead_hour,
+    MIN(r.population_total) AS population_total,
+    MIN(r.gemeinde_count) AS gemeinde_count,
+    COUNT(*) AS lead_time_count
+FROM ranked AS r
+GROUP BY r.run_time_utc;
+
+-- ---------------------------------------------------------------------------
 -- Check 4: bridge coverage per Gemeinde (Σ intersection / Gemeinde area).
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION normalized.check_de_bridge_coverage(
