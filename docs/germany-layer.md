@@ -252,11 +252,23 @@ uv run --env-file .env python -m src.germany.run_sectors --file-date 2026-06-30
 
 `run_sectors` runs the Dagster job `germany_sectors`: the 17 WZ booklets for
 the quarter and for a year earlier, then one Regionalreport per Kreis, one
-request at a time with a 1.5 s pause and backoff on 429/5xx (434 files, about
-11 minutes for a new quarter; files on disk are not downloaded again and all
-are kept). Every file is checked against the structural contract before it is
-kept; one bad file stops the run. `ba_sectors_release_sensor` (off by
-default) sends two HEAD requests a day for the next quarter.
+request at a time with a 3 s pause (434 files, about 22 minutes for a new
+quarter; at most 600 requests per run; files on disk are not downloaded again
+and all are kept). Every file is checked against the structural contract
+before it is kept; one bad file stops the run. `ba_sectors_release_sensor`
+(off by default) sends two HEAD requests a day for the next quarter.
+
+**When the BA throttles.** The BA limits the volume of requests: HTTP 429
+("too many requests") is answered with waits of 1, 5 and 15 minutes (or the
+server's `Retry-After`); if it persists, a cool-down of at least an hour is
+written to `data/raw/germany/ba_rate_limit.json`, which every download and
+the sensor respect before sending anything. `run_sectors` then stops with
+exit status 2 and a message like "312 of 400 Kreis files for 2026-03-31 are
+on disk … Run the same command again after 2026-11-14T23:05+01:00". Running
+it again later continues with the missing files. To copy the files from
+another checkout instead, put them under `data/raw/germany/ba_regionalreport/`
+and `data/raw/germany/ba_wz_heft/` with the same names: they are checked like
+downloads and not requested again.
 
 | Step | Object | Notes |
 | --- | --- | --- |

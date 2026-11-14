@@ -307,7 +307,7 @@ Five jobs in the group `germany`:
 | `germany_static` | `python -m src.germany.run_static` | VG250 and Zensus raw loads, hierarchy, population, grid subset and bridge, checks 1–4. Safe to repeat: an existing geography version from the same file is left unchanged. |
 | `germany_forecast` | (one partition per lead time, started by the next command) | The four raw DWD fields (shared with Berlin, files only) and the Germany aggregation in SQL. |
 | `germany_forecast_publish` | `python -m src.germany.run_forecast --run-time …` | Runs all 25 lead times, then publishes, applies retention and runs checks 5–7. |
-| `germany_sectors` | `python -m src.germany.run_sectors [--file-date …]` | Downloads one quarter of both sector products (434 files, one request at a time with a pause and backoff), loads them raw, refreshes the sector values and runs checks 12–15. Started by `ba_sectors_release_sensor` (off by default) or by hand. |
+| `germany_sectors` | `python -m src.germany.run_sectors [--file-date …]` | Downloads one quarter of both sector products (434 files, one request at a time with a 3 s pause; on HTTP 429 it waits minutes, then records a cool-down that every download and the sensor respect, and stops so the next run resumes), loads them raw, refreshes the sector values and runs checks 12–15. Started by `ba_sectors_release_sensor` (off by default) or by hand. |
 | `germany_employment` | `python -m src.germany.run_employment [--reference-date …]` | Downloads one BA vintage, loads it raw, refreshes the indicator values and runs checks 8–11. Started by `ba_gemeindedaten_release_sensor` (daily HEAD request for the next vintage; off by default) or by hand. |
 
 The Berlin availability sensor does not trigger these jobs and stays stopped

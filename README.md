@@ -368,7 +368,8 @@ uv run --env-file .env python -m src.germany.run_forecast \
 # employment theme: download, load and check the BA Gemeindedaten (yearly)
 uv run --env-file .env python -m src.germany.run_employment
 
-# sector theme: 434 BA files per quarter, one request at a time (~11 minutes)
+# sector theme: 434 BA files per quarter, one request at a time (~22 minutes);
+# if the BA throttles (HTTP 429), it stops, says when to run again, and resumes
 uv run --env-file .env python -m src.germany.run_sectors
 
 # export the map and open a local preview (http://127.0.0.1:8766/)

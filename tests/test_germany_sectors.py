@@ -214,7 +214,7 @@ class _Session:
 
 
 @pytest.mark.contract
-def test_polite_client_pauses_retries_and_gives_up(monkeypatch) -> None:
+def test_polite_client_pauses_retries_and_gives_up(monkeypatch, tmp_path) -> None:
     import src.germany.ba_sectors as module
 
     clock = {"now": 0.0}
@@ -227,22 +227,79 @@ def test_polite_client_pauses_retries_and_gives_up(monkeypatch) -> None:
 
     monkeypatch.setattr(module.time, "sleep", sleep)
 
+    cooldown = tmp_path / "ba_rate_limit.json"
     session = _Session([200, 200])
-    client = PoliteClient(session, pause_seconds=1.5)
+    client = PoliteClient(session, pause_seconds=1.5, cooldown_path=cooldown)
     client.request("GET", "u1")
     client.request("GET", "u2")
     assert sleeps == [1.5]  # pause between two requests, none before the first
 
     sleeps.clear()
     session = _Session([503, _Response(429, {"Retry-After": "7"}), 200])
-    client = PoliteClient(session, pause_seconds=0, backoff_seconds=(10.0, 30.0))
+    client = PoliteClient(session, pause_seconds=0, backoff_seconds=(10.0, 30.0), cooldown_path=cooldown)
     assert client.request("GET", "u").status_code == 200
     assert session.calls == 3 and sleeps == [10.0, 7.0]
 
     session = _Session([503, 503])
-    client = PoliteClient(session, pause_seconds=0, max_attempts=2, backoff_seconds=(1.0,))
+    client = PoliteClient(session, pause_seconds=0, max_attempts=2, backoff_seconds=(1.0,),
+                          cooldown_path=cooldown)
     assert client.request("GET", "u").status_code == 503  # caller sees the failure
     assert session.calls == 2
+
+
+@pytest.mark.contract
+def test_rate_limit_waits_minutes_then_stops_everyone_for_the_cooldown(monkeypatch, tmp_path) -> None:
+    import src.germany.ba_sectors as module
+    from src.germany.ba_sectors import BaRateLimited, cooldown_until
+
+    sleeps: list[float] = []
+    monkeypatch.setattr(module.time, "sleep", sleeps.append)
+    cooldown = tmp_path / "ba_rate_limit.json"
+
+    # 429 without Retry-After: minutes between attempts, then a recorded
+    # cool-down and a clear stop instead of a returned error page.
+    session = _Session([429, 429, 429, 429])
+    client = PoliteClient(session, pause_seconds=0, rate_limit_waits=(60.0, 300.0, 900.0),
+                          cooldown_seconds=3600.0, cooldown_path=cooldown)
+    with pytest.raises(BaRateLimited, match="run again after"):
+        client.request("GET", "u")
+    assert session.calls == 4 and sleeps == [60.0, 300.0, 900.0]
+    assert cooldown_until(cooldown) is not None
+
+    # Any later client (the other raw asset, the sensor, the next run) sends
+    # nothing while the cool-down lasts.
+    later = _Session([200])
+    with pytest.raises(BaRateLimited, match="no requests before"):
+        PoliteClient(later, pause_seconds=0, cooldown_path=cooldown).request("GET", "u")
+    assert later.calls == 0
+
+    # A run never exceeds its request budget.
+    budget = _Session([200, 200, 200])
+    client = PoliteClient(budget, pause_seconds=0, max_requests=2, cooldown_path=tmp_path / "other.json")
+    client.request("GET", "a")
+    client.request("GET", "b")
+    with pytest.raises(BaRateLimited, match="budget"):
+        client.request("GET", "c")
+    assert budget.calls == 2
+
+
+@pytest.mark.contract
+def test_run_sectors_and_sensor_respect_an_active_cooldown(monkeypatch, tmp_path) -> None:
+    import dagster as dg
+
+    import src.germany.run_sectors as run
+    from src.dagster_pipeline.sensors import ba_sectors as sensor
+    from src.germany.ba_sectors import _record_cooldown
+
+    _record_cooldown(tmp_path / "data/raw/germany/ba_rate_limit.json", 600, "u")
+    monkeypatch.setattr(run, "ensure_dagster_home", lambda root: None)
+    monkeypatch.setattr(run, "execute_job", lambda *a, **k: pytest.fail("job must not start"))
+    with pytest.raises(run.SectorRunRateLimited, match="Run the same command again after"):
+        run.run_germany_sectors(date(2026, 3, 31), project_root=tmp_path)
+
+    monkeypatch.setattr(sensor, "cooldown_until", lambda: run.cooldown_until(tmp_path / "data/raw/germany/ba_rate_limit.json"))
+    monkeypatch.setattr(sensor, "latest_loaded_file_date", lambda: pytest.fail("no lookup during a cool-down"))
+    assert isinstance(sensor.ba_sectors_release_sensor(dg.build_sensor_context()), dg.SkipReason)
 
 
 @pytest.mark.contract

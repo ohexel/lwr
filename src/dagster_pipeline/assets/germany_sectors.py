@@ -33,7 +33,7 @@ NORMALIZED_DE_SECTOR_VALUES_KEY = dg.AssetKey(["normalized", "de_sector_values"]
 
 class SectorConfig(dg.Config):
     file_date: str = SECTOR_LATEST_KNOWN.isoformat()
-    pause_seconds: float = 1.5
+    pause_seconds: float = 3.0
 
 
 @dg.asset(

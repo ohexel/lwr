@@ -19,7 +19,7 @@ import logging
 import re
 import time
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Iterator
 
@@ -31,6 +31,7 @@ from src.database.connection import database_connection
 from src.database.load import copy_rows
 from src.germany.acquire import AcquiredFile, sha256_file
 from src.germany.contract import (
+    GERMANY_RAW_ROOT,
     BA_REGIONALREPORT_CONTRACT,
     BA_WZ_HEFT_CONTRACT,
     BaRegionalreportContract,
@@ -59,14 +60,61 @@ class BaSectorContractError(ValueError):
 
 
 # ---------------------------------------------------------------------------
-# Considerate HTTP: one request at a time, a pause between requests, backoff
+# Considerate HTTP: one request at a time, a pause between requests, backoff.
+# HTTP 429 means "come back later": the client waits minutes, not seconds,
+# and if the server still refuses it records a cool-down that every client
+# (both raw assets, the sensor, the next run) respects before sending
+# anything. A run then stops with BaRateLimited; files already on disk are
+# kept, so the next run continues where this one stopped.
 # ---------------------------------------------------------------------------
+DEFAULT_COOLDOWN_PATH = GERMANY_RAW_ROOT / "ba_rate_limit.json"
+
+
+class BaRateLimited(RuntimeError):
+    """The BA asked us to slow down, or this run used up its request budget."""
+
+
+def cooldown_until(path: Path = DEFAULT_COOLDOWN_PATH) -> datetime | None:
+    """End of an active cool-down, or None."""
+    try:
+        until = datetime.fromisoformat(json.loads(path.read_text(encoding="utf-8"))["until_utc"])
+    except (OSError, ValueError, KeyError):
+        return None
+    return until if until > datetime.now(timezone.utc) else None
+
+
+def _record_cooldown(path: Path, seconds: float, url: str) -> datetime:
+    until = datetime.now(timezone.utc) + timedelta(seconds=seconds)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(
+            {
+                "until_utc": until.isoformat(),
+                "recorded_at_utc": datetime.now(timezone.utc).isoformat(),
+                "last_refused_url": url,
+            },
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return until
+
+
 @dataclass
 class PoliteClient:
     session: requests.Session
-    pause_seconds: float = 1.5
+    pause_seconds: float = 3.0
     max_attempts: int = 4
+    # Network errors and 5xx: short waits.
     backoff_seconds: tuple[float, ...] = (10.0, 30.0, 90.0)
+    # 429 without Retry-After: the server limits volume, so wait minutes.
+    rate_limit_waits: tuple[float, ...] = (60.0, 300.0, 900.0)
+    # After giving up on 429: nobody asks again before this many seconds.
+    cooldown_seconds: float = 3600.0
+    cooldown_path: Path = DEFAULT_COOLDOWN_PATH
+    # Upper bound of requests per run (a quarter needs 434 plus retries).
+    max_requests: int = 600
     _last_request: float | None = None
     requests_sent: int = 0
 
@@ -77,8 +125,22 @@ class PoliteClient:
         if delay > 0:
             time.sleep(delay)
 
+    def _check_allowed(self) -> None:
+        until = cooldown_until(self.cooldown_path)
+        if until is not None:
+            raise BaRateLimited(
+                f"The BA statistics server asked us to slow down; no requests before "
+                f"{until.isoformat(timespec='minutes')} (cool-down in {self.cooldown_path}). "
+                "Files already on disk are kept; run again after that time."
+            )
+        if self.requests_sent >= self.max_requests:
+            raise BaRateLimited(
+                f"Request budget of {self.max_requests} for this run used up; run again to continue."
+            )
+
     def request(self, method: str, url: str) -> requests.Response:
         for attempt in range(1, self.max_attempts + 1):
+            self._check_allowed()
             self._wait()
             self._last_request = time.monotonic()
             self.requests_sent += 1
@@ -90,17 +152,35 @@ class PoliteClient:
                 if attempt == self.max_attempts:
                     raise
                 LOGGER.warning("%s %s failed (%s); retrying", method, url, error)
-            else:
-                if response.status_code != 429 and response.status_code < 500:
-                    return response
+                time.sleep(self.backoff_seconds[min(attempt, len(self.backoff_seconds)) - 1])
+                continue
+            retry_after = response.headers.get("Retry-After", "")
+            if response.status_code == 429:
                 if attempt == self.max_attempts:
-                    return response
+                    wait = float(retry_after) if retry_after.isdigit() else self.cooldown_seconds
+                    until = _record_cooldown(self.cooldown_path, max(wait, self.cooldown_seconds), url)
+                    raise BaRateLimited(
+                        f"The BA statistics server refused {self.max_attempts} requests in a row "
+                        f"(HTTP 429) for {url}; no requests before {until.isoformat(timespec='minutes')}. "
+                        "Files already on disk are kept; run again after that time."
+                    )
+                wait = (
+                    min(float(retry_after), 3600.0) if retry_after.isdigit()
+                    else self.rate_limit_waits[min(attempt, len(self.rate_limit_waits)) - 1]
+                )
+                LOGGER.warning(
+                    "%s %s: HTTP 429 (rate limit); waiting %.0f s before retrying", method, url, wait
+                )
+                time.sleep(wait)
+                continue
+            if response.status_code >= 500 and attempt < self.max_attempts:
                 LOGGER.warning("%s %s: HTTP %s; retrying", method, url, response.status_code)
-                retry_after = response.headers.get("Retry-After", "")
                 if retry_after.isdigit():
                     time.sleep(min(float(retry_after), 600.0))
-                    continue
-            time.sleep(self.backoff_seconds[min(attempt, len(self.backoff_seconds)) - 1])
+                else:
+                    time.sleep(self.backoff_seconds[min(attempt, len(self.backoff_seconds)) - 1])
+                continue
+            return response
         raise AssertionError("unreachable")
 
     def is_published(self, url: str) -> bool:
@@ -432,8 +512,12 @@ def acquire_regionalreports(
             lambda p, k=kreis_key: read_regionalreport(p, k, file_date, contract),
         )
         acquired.append(item)
-        if item.downloaded and number % 50 == 0:
-            LOGGER.info("Regionalreport %s: %d of %d files", file_date, number, len(kreis_keys))
+        if number % 50 == 0 or number == len(kreis_keys):
+            downloaded = sum(a.downloaded for a in acquired)
+            LOGGER.info(
+                "Regionalreport %s: %d of %d files (%d downloaded now, %d already on disk)",
+                file_date, number, len(kreis_keys), downloaded, number - downloaded,
+            )
     return acquired
 
 
@@ -562,7 +646,7 @@ def main(argv: list[str] | None = None) -> int:
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--file-date", type=date.fromisoformat, required=True)
-    parser.add_argument("--pause-seconds", type=float, default=1.5)
+    parser.add_argument("--pause-seconds", type=float, default=3.0)
     parser.add_argument("--wz-only", action="store_true", help="Download the WZ booklets only.")
     args = parser.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")

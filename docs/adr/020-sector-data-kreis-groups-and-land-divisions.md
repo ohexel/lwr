@@ -111,11 +111,29 @@ replaces the earlier one.
 
 A quarter means 434 downloads (400 Kreis files and 17 booklets for the
 quarter and for the same quarter a year earlier). They are sent one at a
-time with a pause of 1.5 s, retried with growing waits on 429 and 5xx (and
-after the server's `Retry-After`), and never repeated for a file on disk.
-Every file is checked against the structural contract before it is kept; a
-single bad file stops the run instead of skipping a Kreis. A daily sensor
-(off by default) sends two HEAD requests for the next quarter.
+time with a pause of 3 s (about 22 minutes), never repeated for a file on
+disk, and capped at 600 requests per run. Every file is checked against the
+structural contract before it is kept; a single bad file stops the run
+instead of skipping a Kreis. A daily sensor (off by default) sends two HEAD
+requests for the next quarter.
+
+The BA limits the volume of requests, not only their pace. On 14 Nov 2026 a
+first download of 434 files needed no retries; a second one an hour later from
+the maintainer's machine (most likely the same network) received HTTP 429
+at file 262 of 400, without a
+`Retry-After` header, and still did after waits of 10, 30 and 90 s. HTTP 429
+is therefore treated as "come back later", not as an error to retry soon:
+
+- network errors and 5xx: retries after 10, 30 and 90 s;
+- 429: retries after the server's `Retry-After`, or after 1, 5 and 15
+  minutes;
+- if the server still refuses, the client records a cool-down of at least
+  one hour in `data/raw/germany/ba_rate_limit.json`. Every client (both raw
+  assets, the release sensor, the next run) checks it before sending
+  anything, so no second step starts asking once the server has throttled.
+  The run stops; `run_sectors` says how many Kreis files are on disk and when
+  to run again (exit status 2), and the next run continues with the missing
+  files.
 
 ### Map value
 

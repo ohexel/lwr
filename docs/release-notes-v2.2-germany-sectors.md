@@ -25,8 +25,12 @@ other themes are unchanged in behaviour.
   for both (the exact row sequence of the Kreis table, column layout, dates,
   value signs).
 - **Considerate acquisition:** 434 files per quarter, one request at a time
-  with a 1.5 s pause, backoff on 429/5xx and `Retry-After`, never repeated for
-  a file on disk; every file checked before it is kept; all files kept.
+  with a 3 s pause, at most 600 requests per run, never repeated for a file on
+  disk; every file checked before it is kept; all files kept. HTTP 429 means
+  "come back later": waits of 1, 5 and 15 minutes (or `Retry-After`), then a
+  recorded cool-down that both downloads and the sensor respect, and a clear
+  stop (`run_sectors` exits with status 2 and says when to run again; the next
+  run resumes).
 - **Data model:** `raw.de_ba_regionalreport`, `raw.de_ba_wz_heft`; sector
   values in the indicator tables of ADR 019, which now take sources that
   publish only some levels; `de_indicator_sum_component` declares Land
@@ -54,7 +58,7 @@ Details in [germany-layer-facts.md](germany-layer-facts.md).
 | Default test suite | 193 passed |
 | Germany integration tests | 7 passed (one new: synthetic workbooks through raw load, refresh and check functions) |
 | Germany acceptance tests | 26 passed |
-| Download of 434 files | 649 s, 233 MB, no retries needed |
+| Download of 434 files | 649 s at the first pause of 1.5 s, 233 MB, no retries needed; a second download an hour later from the maintainer's machine (most likely the same network) was throttled (HTTP 429) at file 262 of 400, which led to the rate-limit handling above |
 | `run_sectors` (files on disk) | 69 s; checks 12–15 passed |
 | Regionalreport vs Gemeindedaten | the Kreis totals of 30 Jun 2025 equal the employees at place of work for all 400 Kreise; Germany minus the Länder equals the Gemeindedaten's unassigned row (2,160) |
 | Regionalreport vs WZ booklets | Land totals equal (32 of 32); groups equal wherever both are complete (37 of 37, apart from the documented Hessen quarter) |
