@@ -1,4 +1,4 @@
-# Draft: v2.0-germany (to be published by the maintainer)
+# v2.0: Adding a Germany-wide temperature layer with hierarchical views
 
 ## Summary
 
