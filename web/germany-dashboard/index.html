@@ -13,7 +13,7 @@
           integrity="sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj" crossorigin="anonymous" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/pmtiles@3.2.1/dist/pmtiles.js"
           integrity="sha384-QfbOCebHNw8pQiPAOd2IFee2v2A5VYZxBk0+JGZ5H+3mfzVIp6zsQNkTsfGJot93" crossorigin="anonymous" defer></script>
-  <script src="app.js?v=6" defer></script>
+  <script src="app.js?v=8" defer></script>
 </head>
 <body>
   <header class="masthead">
@@ -28,7 +28,8 @@
         <legend>Thema</legend>
         <label><input type="radio" name="theme" value="temperature" checked> Temperatur</label>
         <label><input type="radio" name="theme" value="employment"> Beschäftigung</label>
-        <p class="field-note" id="theme-note" hidden>Die Beschäftigungsdaten sind nicht geladen.</p>
+        <label><input type="radio" name="theme" value="sectors"> Industrie</label>
+        <p class="field-note" id="theme-note" hidden>Nicht alle Themen sind geladen.</p>
       </fieldset>
 
       <fieldset id="extreme-field">
@@ -43,6 +44,7 @@
         <label><input type="radio" name="level" value="lan"> Länder</label>
         <label><input type="radio" name="level" value="krs" checked> Kreise</label>
         <label><input type="radio" name="level" value="gem"> Gemeinden</label>
+        <p class="field-note" id="level-note" hidden>Für Gemeinden veröffentlicht die BA keine Branchenzahlen.</p>
       </fieldset>
 
       <fieldset id="weighting-field">
@@ -90,6 +92,23 @@
       seitdem aufgelöst oder zusammengelegt wurden, weist die BA nicht mehr aus, und eine
       Gemeinde, die eine andere aufgenommen hat, zeigt ihren Wert auf der Fläche von 2022.
     </p>
+    <p data-theme="sectors" hidden>
+      <strong>Metall-, Elektro- und Stahlindustrie</strong>: sozialversicherungspflichtig
+      Beschäftigte am Arbeitsort in den Wirtschaftsabteilungen 24 bis 30, 32 und 33 der WZ 2008
+      (unter anderem Metallerzeugung, Metallerzeugnisse, Elektronik, elektrische Ausrüstungen,
+      Maschinenbau, Automobilbau, sonstiger Fahrzeugbau), geteilt durch alle Beschäftigten
+      (eigene Berechnung). Beamte, Selbstständige und Minijobs sind nicht enthalten.
+    </p>
+    <p data-theme="sectors" hidden>
+      <strong>Grenzen der Daten:</strong> Für Gemeinden gibt es keine Branchenzahlen. Für Kreise
+      veröffentlicht die BA nur Gruppen von Wirtschaftszweigen: Automobilbau, Maschinenbau und
+      Stahl lassen sich dort nicht trennen, Chemie steckt in der Gruppe Vorleistungsgüter
+      zusammen mit Papier, Glas und Kunststoff. Getrennte Zahlen für Automobil, Maschinenbau,
+      Chemie und Stahl gibt es nur für Länder und Deutschland; die Gruppenwerte der Länder sind
+      Summen der dort veröffentlichten Wirtschaftsabteilungen (eigene Berechnung). Werte unter 3
+      und daraus rückrechenbare Werte hält die BA geheim; fehlt ein Teil einer Summe, wird keine
+      Summe gebildet.
+    </p>
     <p data-theme="temperature">
       <strong>Gefühlte Temperatur im Schatten</strong> verbindet Lufttemperatur,
       Luftfeuchte und Windgeschwindigkeit (dieselbe Formel wie im Berliner Dashboard).
@@ -113,6 +132,9 @@
       sozialversicherungspflichtig Beschäftigten nach Wohn- und Arbeitsort, Stichtag 30.6.2025,
       <a href="https://statistik.arbeitsagentur.de/">statistik.arbeitsagentur.de</a>;
       Verhältnis Arbeitsort/Wohnort: eigene Berechnung ·
+      Branchen: Statistik der Bundesagentur für Arbeit, Regionalreport über Beschäftigte
+      (Quartalszahlen) und Beschäftigte nach Wirtschaftszweigen (WZ 2008) (Quartalszahlen);
+      Anteile und Ländersummen der Gruppen: eigene Berechnung ·
       Aggregation durch dieses Projekt; keine amtliche Veröffentlichung.
     </p>
   </footer>

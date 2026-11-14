@@ -50,6 +50,9 @@ def test_germany_group_is_registered_with_all_checks() -> None:
         "analytical/de_current_forecast_25h",
         "raw/de_ba_gemeindedaten",
         "normalized/de_indicator_value",
+        "raw/de_ba_regionalreport",
+        "raw/de_ba_wz_heft",
+        "normalized/de_sector_values",
     } <= germany_assets
     check_names = {key.name for key in graph.asset_check_keys}
     assert {
@@ -64,6 +67,10 @@ def test_germany_group_is_registered_with_all_checks() -> None:
         "de_ba_column_identities",
         "de_ba_key_coverage",
         "de_ba_source_totals",
+        "de_ba_sector_source_contract",
+        "de_ba_sector_identities",
+        "de_ba_sector_source_totals",
+        "de_ba_sector_key_coverage",
     } <= check_names
 
 
@@ -71,8 +78,14 @@ def test_all_germany_checks_pass_on_installed_data() -> None:
     from src.dagster_pipeline.checks.germany_employment import GERMANY_EMPLOYMENT_CHECKS
     from src.dagster_pipeline.checks.germany_forecast import GERMANY_FORECAST_CHECKS
     from src.dagster_pipeline.checks.germany_normalized import GERMANY_NORMALIZED_CHECKS
+    from src.dagster_pipeline.checks.germany_sectors import GERMANY_SECTOR_CHECKS
 
-    for check in (*GERMANY_NORMALIZED_CHECKS, *GERMANY_FORECAST_CHECKS, *GERMANY_EMPLOYMENT_CHECKS):
+    for check in (
+        *GERMANY_NORMALIZED_CHECKS,
+        *GERMANY_FORECAST_CHECKS,
+        *GERMANY_EMPLOYMENT_CHECKS,
+        *GERMANY_SECTOR_CHECKS,
+    ):
         result = check.node_def.compute_fn.decorated_fn()
         assert result.passed, (check.check_key.name, result.metadata)
 
@@ -315,3 +328,81 @@ def test_employment_export_is_complete() -> None:
     assert bund["employees_workplace"] >= sum(
         r["employees_workplace"] for r in employment["lan"].values()
     )
+
+
+# ---------------------------------------------------------------------------
+# Third theme: sectors, after python -m src.germany.run_sectors
+# ---------------------------------------------------------------------------
+def test_sector_view_covers_every_kreis_and_land_with_an_explicit_status() -> None:
+    rows = dict(
+        ((level, status), count)
+        for level, status, count in _all(
+            """
+            SELECT level, employees_total_status, COUNT(*)
+            FROM analytical.de_current_sectors GROUP BY 1, 2
+            """
+        )
+    )
+    assert rows == {("krs", "value"): KREISE, ("lan", "value"): LAENDER, ("sta", "value"): 1}
+    # Land groups are own calculations with a stated basis; Kreis groups are
+    # published as they are.
+    bases = {
+        (level, basis)
+        for level, basis in _all(
+            "SELECT DISTINCT level, metal_electrical_steel_basis FROM analytical.de_current_sectors"
+        )
+    }
+    assert {basis for level, basis in bases if level == "krs"} == {"published"}
+    assert {basis for level, basis in bases if level != "krs"} <= {"sum_of_divisions", "sum_of_kreise"}
+    # The four divisions exist only for Länder and Germany.
+    statuses = {
+        row[0]
+        for row in _all(
+            "SELECT DISTINCT motor_vehicles_status FROM analytical.de_current_sectors WHERE level = 'krs'"
+        )
+    }
+    assert statuses == {"not_published_at_level"}
+    # A share exists exactly where both values are published.
+    mismatches = _one(
+        """
+        SELECT COUNT(*) FROM analytical.de_current_sectors
+        WHERE (metal_electrical_steel_share_status = 'value')
+              <> (metal_electrical_steel_status = 'value' AND employees_total_status = 'value')
+           OR metal_electrical_steel_share IS DISTINCT FROM
+              CASE WHEN metal_electrical_steel_share_status = 'value'
+                   THEN metal_electrical_steel / employees_total END
+        """
+    )[0]
+    assert mismatches == 0
+
+
+def test_regionalreport_counts_employees_at_place_of_work() -> None:
+    # Where both BA products have the same date (30 June), the Kreis totals of
+    # the Regionalreport equal the Gemeindedaten's employees at place of work.
+    compared, different = _one(
+        """
+        SELECT COUNT(*), COUNT(*) FILTER (WHERE r.value <> g.value)
+        FROM normalized.de_indicator_value AS r
+        JOIN normalized.de_indicator_value AS g
+          ON g.level = 'krs' AND g.region_key = r.region_key
+         AND g.reference_date = r.reference_date
+         AND g.geography_version = r.geography_version
+         AND g.indicator_code = 'employees_workplace' AND g.value_status = 'value'
+        WHERE r.level = 'krs' AND r.indicator_code = 'sector_total' AND r.value_status = 'value'
+        """
+    )
+    assert compared == KREISE
+    assert different == 0
+
+
+def test_sector_export_is_complete() -> None:
+    from src.export_germany_dashboard import collect_sectors
+
+    with database_connection(application_name="lwr_germany_acceptance") as connection:
+        sectors = collect_sectors(connection)
+    assert sectors is not None
+    assert (len(sectors["lan"]), len(sectors["krs"])) == (LAENDER, KREISE)
+    bund = sectors["bund"]
+    for measure in ("motor_vehicles", "machinery", "chemicals", "steel", "metal_electrical_steel"):
+        assert bund[measure] is not None and bund[measure] < bund["employees_total"]
+    assert all("motor_vehicles" not in record for record in sectors["krs"].values())

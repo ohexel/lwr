@@ -157,6 +157,33 @@ ORDER BY level, region_key
 """
 JOBS_RATIO_STATUSES = frozenset({"value", "suppressed", "not_reported", "not_computable"})
 
+# Third theme: employees by sector, from analytical.de_current_sectors.
+SECTOR_MEASURES = (
+    "employees_total",
+    "manufacturing",
+    "metal_electrical_steel",
+    "intermediate_goods",
+    "consumer_goods",
+    "metal_electrical_steel_previous_year",
+    "motor_vehicles",
+    "machinery",
+    "chemicals",
+    "steel",
+)
+SECTOR_GROUPS = ("manufacturing", "metal_electrical_steel", "intermediate_goods", "consumer_goods")
+SECTOR_QUERY = """
+SELECT level, region_key, reference_date,
+       """ + ",\n       ".join(f"{m}, {m}_status" for m in SECTOR_MEASURES) + """,
+       metal_electrical_steel_share, metal_electrical_steel_share_status,
+       """ + ", ".join(f"{g}_basis" for g in SECTOR_GROUPS) + """,
+       quality_note
+FROM analytical.de_current_sectors
+ORDER BY level, region_key
+"""
+SECTOR_STATUSES = frozenset(
+    {"value", "suppressed", "not_reported", "not_computable", "not_published_at_level"}
+)
+
 KREIS_TYPE_QUERY = """
 SELECT kreis_key, kreis_type FROM normalized.de_kreis WHERE geography_version = %s
 """
@@ -303,6 +330,86 @@ def employment_record(row: tuple) -> dict[str, object]:
     if reason is not None:
         record["not_reported_reason"] = reason
     return record
+
+
+def sector_record(row: tuple) -> dict[str, object]:
+    """One region of sectors.json. A measure is a number only where the BA
+    published it (or, for Land groups, all its parts); "status" says why
+    another is null. Measures not published at the level are left out.
+    "basis" says how a Land group was summed (own calculation)."""
+    width = 2 * len(SECTOR_MEASURES)
+    measures = row[3:3 + width]
+    share, share_status = row[3 + width:5 + width]
+    bases = row[5 + width:5 + width + len(SECTOR_GROUPS)]
+    quality_note = row[5 + width + len(SECTOR_GROUPS)]
+    record: dict[str, object] = {}
+    basis = {group: value for group, value in zip(SECTOR_GROUPS, bases) if value}
+    if basis:
+        record["basis"] = basis
+    if quality_note:
+        record["quality_note"] = quality_note
+    status: dict[str, str] = {}
+    for name, value, value_status in zip(SECTOR_MEASURES, measures[0::2], measures[1::2]):
+        if value_status not in SECTOR_STATUSES:
+            raise ValueError(f"{row[0]} {row[1]} {name}: status {value_status!r}")
+        if value_status == "not_published_at_level":
+            continue
+        record[name] = int(value) if value_status == "value" else None
+        if value_status != "value":
+            status[name] = value_status
+    if share_status not in SECTOR_STATUSES or (share is not None) != (share_status == "value"):
+        raise ValueError(f"{row[0]} {row[1]}: share {share!r} with {share_status}")
+    record["metal_electrical_steel_share"] = _round(share, 5)
+    record["metal_electrical_steel_share_status"] = share_status
+    if status:
+        record["status"] = status
+    return record
+
+
+def collect_sectors(connection: psycopg.Connection) -> dict[str, object] | None:
+    """sectors.json, or None when the sector data is not loaded."""
+    exists = connection.execute(
+        "SELECT to_regclass('analytical.de_current_sectors') IS NOT NULL"
+    ).fetchone()[0]
+    if not exists:
+        return None
+    rows = connection.execute(SECTOR_QUERY).fetchall()
+    if not rows:
+        return None
+    by_level: dict[str, dict[str, dict[str, object]]] = {"sta": {}, "lan": {}, "krs": {}}
+    dates: dict[str, set] = {"krs": set(), "lan": set()}
+    for row in rows:
+        by_level[row[0]][row[1]] = sector_record(row)
+        dates["krs" if row[0] == "krs" else "lan"].add(row[2])
+    for level in ("lan", "krs"):
+        if len(by_level[level]) != EXPECTED_COUNTS[level]:
+            raise ValueError(
+                f"sectors {level}: {len(by_level[level])} regions, expected {EXPECTED_COUNTS[level]}"
+            )
+    if list(by_level["sta"]) != ["DG"] or len(dates["krs"]) != 1 or len(dates["lan"]) != 1:
+        raise ValueError(f"sectors: unexpected Germany row or dates {dates}")
+    sources = {
+        code: {"title": title, "publisher": publisher, "citation": citation, "homepage": homepage}
+        for code, title, publisher, citation, homepage in connection.execute(
+            """
+            SELECT source_code, title, publisher, citation, homepage
+            FROM normalized.de_indicator_source
+            WHERE source_code IN ('ba_regionalreport', 'ba_wz_heft')
+            """
+        )
+    }
+    return {
+        "schema": 1,
+        "theme": "sectors",
+        "geography_version": GEOGRAPHY_VERSION,
+        "kreis_reference_date": next(iter(dates["krs"])).isoformat(),
+        "land_reference_date": next(iter(dates["lan"])).isoformat(),
+        "sources": sources,
+        "exported_at_utc": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
+        "bund": by_level["sta"]["DG"],
+        "lan": by_level["lan"],
+        "krs": by_level["krs"],
+    }
 
 
 def collect_employment(connection: psycopg.Connection) -> dict[str, object] | None:
@@ -462,6 +569,7 @@ def export_germany_dashboard(
     with database_connection(application_name="lwr_germany_dashboard_export") as connection:
         values = collect_values(connection)
         employment = collect_employment(connection)
+        sectors = collect_sectors(connection)
         if values["geography_version"] != GEOGRAPHY_VERSION:
             raise ValueError(
                 f"current run uses {values['geography_version']}, "
@@ -482,6 +590,15 @@ def export_germany_dashboard(
         result["employment"] = {
             "reference_date": employment["reference_date"],
             "bytes": (data_dir / "employment.json").stat().st_size,
+        }
+    if sectors is None:
+        result["sectors"] = "not loaded (python -m src.germany.run_sectors)"
+    else:
+        write_json_atomic(data_dir / "sectors.json", sectors)
+        result["sectors"] = {
+            "kreis_reference_date": sectors["kreis_reference_date"],
+            "land_reference_date": sectors["land_reference_date"],
+            "bytes": (data_dir / "sectors.json").stat().st_size,
         }
     result.update(
         {

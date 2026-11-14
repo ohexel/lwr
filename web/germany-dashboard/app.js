@@ -1,6 +1,7 @@
 /* Deutschland-Atlas: PMTiles outlines (key only) joined client-side with
-   data/values.json (temperature) and data/employment.json (employment) via
-   feature-state. No basemap. One theme is shown at a time. */
+   data/values.json (temperature), data/employment.json (employment) and
+   data/sectors.json (industry) via feature-state. No basemap. One theme is
+   shown at a time. */
 (function () {
   "use strict";
 
@@ -51,6 +52,20 @@
       ],
       ticks: [[-2, "¼"], [-1, "½"], [0, "1"], [1, "2"], [2, "4"]],
     },
+    sectors: {
+      hash: "#industrie",
+      title: "Deutschland: Beschäftigte in der Metall-, Elektro- und Stahlindustrie",
+      eyebrow: "Statistik der Bundesagentur für Arbeit · VG250",
+      mapLabel:
+        "Karte von Deutschland, eingefärbt nach dem Anteil der Beschäftigten in der Metall-, Elektro- und Stahlindustrie",
+      // ColorBrewer Greens (sequential, colour-vision-safe) on the share in
+      // percent, fixed from 0 to 40 %; higher shares take the end colour.
+      scale: [
+        [0, "#f7fcf5"], [5, "#e5f5e0"], [10, "#c7e9c0"], [15, "#a1d99b"],
+        [20, "#74c476"], [25, "#41ab5d"], [30, "#238b45"], [35, "#006d2c"], [40, "#00441b"],
+      ],
+      ticks: [[0, "0"], [10, "10"], [20, "20"], [30, "30"], [40, "40 %"]],
+    },
   };
 
   const state = {
@@ -60,6 +75,7 @@
     extreme: "max",
     values: null,
     employment: null,
+    sectors: null,
     hovered: null,
     pinned: null,
   };
@@ -87,6 +103,8 @@
   const oneDecimal = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
   const twoDecimals = new Intl.NumberFormat("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const degrees = (v) => (v === null || v === undefined ? "–" : `${oneDecimal.format(v)} °C`);
+  const percentFmt = new Intl.NumberFormat("de-DE", { style: "percent", minimumFractionDigits: 1, maximumFractionDigits: 1 });
+  const signedFmt = new Intl.NumberFormat("de-DE", { signDisplay: "exceptZero" });
   const referenceDate = () => dateFmt.format(new Date(`${state.employment.reference_date}T00:00:00Z`));
 
   // ---------------------------------------------------------------- temperature values
@@ -137,8 +155,62 @@
     return state.employment ? state.employment[level][key] : null;
   }
 
+  // ---------------------------------------------------------------- sector values
+  // sectors.json: Kreise from the BA Regionalreport (groups as published),
+  // Länder and Germany from the BA WZ booklets (groups = sums of divisions or
+  // of Kreise, own calculation, "basis" says which; plus the divisions 29, 28, 20, 24.1). A value is null
+  // where the BA suppressed it or a part of it ("status" says which).
+  const SECTOR_MISSING = {
+    suppressed: "von der BA geheimgehalten",
+    not_reported: "von der BA nicht ausgewiesen",
+    not_computable: "nicht berechenbar",
+  };
+  const SECTOR_GROUPS = [
+    ["metal_electrical_steel", "Metall-, Elektro- und Stahlindustrie", "WZ 24–30, 32, 33"],
+    ["intermediate_goods", "Vorleistungsgüter, insbesondere Chemie und Kunststoff", "WZ 16, 17, 19, 20, 22, 23"],
+    ["consumer_goods", "überwiegend häuslich konsumierte Güter", "WZ 10–15, 18, 21, 31"],
+    ["manufacturing", "Verarbeitendes Gewerbe insgesamt", "WZ 10–33"],
+  ];
+  const SECTOR_DIVISIONS = [
+    ["motor_vehicles", "Automobil: Kraftwagen und Kraftwagenteile", "WZ 29"],
+    ["machinery", "Maschinenbau", "WZ 28"],
+    ["chemicals", "Chemie: chemische Erzeugnisse", "WZ 20"],
+    ["steel", "Stahl: Roheisen, Stahl und Ferrolegierungen", "WZ 24.1"],
+  ];
+  const sectorRecord = (level, key) => {
+    if (!state.sectors) return null;
+    return level === "bund" ? state.sectors.bund : (state.sectors[level] || {})[key] || null;
+  };
+  function sectorText(record, measure) {
+    const value = record[measure];
+    if (value !== null && value !== undefined) {
+      const total = record.employees_total;
+      const share = total ? ` · ${percentFmt.format(value / total)}` : "";
+      return `${numberFmt.format(value)}${measure === "employees_total" ? "" : share}`;
+    }
+    const status = record.status && record.status[measure];
+    // A Land sum (own calculation) with a hidden part, as opposed to a value
+    // the BA itself published as hidden.
+    if (status === "suppressed" && String((record.basis || {})[measure] || "").startsWith("sum_of_")) {
+      return "nicht berechenbar: Teilwerte von der BA geheimgehalten";
+    }
+    return SECTOR_MISSING[status] || "–";
+  }
+  const shareText = (record) =>
+    record.metal_electrical_steel_share_status === "value"
+      ? percentFmt.format(record.metal_electrical_steel_share)
+      : SECTOR_MISSING[record.metal_electrical_steel_share_status] || "–";
+
   // ---------------------------------------------------------------- per-theme value of a region
   function featureState(level, key) {
+    if (state.theme === "sectors") {
+      const record = level === "gem" ? null : sectorRecord(level, key);
+      if (!record) return { v: null, s: "not_reported" };
+      if (record.metal_electrical_steel_share_status !== "value") {
+        return { v: null, s: record.metal_electrical_steel_share_status };
+      }
+      return { v: 100 * record.metal_electrical_steel_share, s: "value" };
+    }
     if (state.theme === "employment") {
       const record = employmentRecord(level, key);
       if (!record) return { v: null, s: "not_reported" };
@@ -227,6 +299,44 @@
     return rows;
   }
 
+  function sectorRows(level, key) {
+    const record = sectorRecord(level, key);
+    if (!record) return [["Branchen", "keine Daten"]];
+    const BASIS_TEXT = {
+      sum_of_divisions: ", Summe der Wirtschaftsabteilungen (eigene Berechnung)",
+      sum_of_kreise: ", Summe der Kreise (eigene Berechnung)",
+    };
+    const rows = [
+      ["Anteil Metall-, Elektro- und Stahlindustrie an allen Beschäftigten (eigene Berechnung)", shareText(record)],
+    ];
+    for (const [measure, label, codes] of SECTOR_GROUPS) {
+      const sums = BASIS_TEXT[(record.basis || {})[measure]] || "";
+      rows.push([`${label} (${codes}${sums})`, sectorText(record, measure)]);
+    }
+    const previous = record.metal_electrical_steel_previous_year;
+    if (previous !== null && previous !== undefined && record.metal_electrical_steel !== null) {
+      rows.push([
+        "Metall-, Elektro- und Stahlindustrie: Veränderung gegenüber dem Vorjahresquartal",
+        `${signedFmt.format(record.metal_electrical_steel - previous)} · Vorjahr ${numberFmt.format(previous)}`,
+      ]);
+    }
+    rows.push(["Sozialversicherungspflichtig Beschäftigte am Arbeitsort, insgesamt", sectorText(record, "employees_total")]);
+    if (record.quality_note) rows.unshift(["Hinweis zur Datenqualität", record.quality_note]);
+    if (level === "krs") {
+      rows.push(["Automobil, Maschinenbau, Chemie, Stahl", "nur für Länder veröffentlicht"]);
+      rows.push([
+        "Hinweis",
+        "Für Kreise veröffentlicht die BA nur Gruppen: Automobilbau (WZ 29), Maschinenbau (WZ 28) und " +
+          "Stahl (WZ 24.1) gehören zur Metall-, Elektro- und Stahlindustrie, Chemie (WZ 20) zu den Vorleistungsgütern.",
+      ]);
+    } else {
+      for (const [measure, label, code] of SECTOR_DIVISIONS) {
+        rows.push([`${label} (${code})`, sectorText(record, measure)]);
+      }
+    }
+    return rows;
+  }
+
   function renderDetails(level, key) {
     const panel = $("details");
     panel.replaceChildren();
@@ -244,7 +354,10 @@
     context.className = "context";
     context.textContent = `${LEVEL_LABEL[level]} ${key} · ${parentNames(level, record)}`;
     const dl = document.createElement("dl");
-    const rows = state.theme === "employment" ? employmentRows(level, key) : temperatureRows(level, record);
+    const rows =
+      state.theme === "employment" ? employmentRows(level, key)
+      : state.theme === "sectors" ? sectorRows(level, key)
+      : temperatureRows(level, record);
     for (const [label, value] of rows) {
       const dt = document.createElement("dt");
       dt.textContent = label;
@@ -270,6 +383,11 @@
     if (state.theme === "employment") {
       const employment = employmentRecord(level, key);
       value.textContent = employment ? `Verhältnis ${ratioText(employment)}` : "keine Daten";
+    } else if (state.theme === "sectors") {
+      const sector = sectorRecord(level, key);
+      value.textContent = sector
+        ? `Metall, Elektro, Stahl: ${shareText(sector)}${sector.quality_note ? " · Hinweis zur Datenqualität" : ""}`
+        : "keine Daten";
     } else {
       const v = record[valueKey(level, APPARENT)];
       const hour = record[hourKey(valueKey(level, APPARENT))];
@@ -298,16 +416,22 @@
       ticks.append(span);
     }
     const employment = state.theme === "employment";
+    const sectors = state.theme === "sectors";
     $("legend-title").textContent = employment
       ? "Beschäftigte am Arbeitsort je Beschäftigten am Wohnort"
-      : EXTREME[state.extreme].legend;
+      : sectors
+        ? "Anteil der Beschäftigten in der Metall-, Elektro- und Stahlindustrie (WZ 24–30, 32, 33)"
+        : EXTREME[state.extreme].legend;
     $("legend-ends").hidden = !employment;
-    $("legend-suppressed").hidden = !employment;
-    $("legend-missing-label").textContent = employment ? "von der BA nicht ausgewiesen" : "Kein Wert";
+    $("legend-suppressed").hidden = !(employment || sectors);
+    $("legend-missing-label").textContent = employment || sectors ? "von der BA nicht ausgewiesen" : "Kein Wert";
     $("legend-note").textContent = employment
       ? "Feste, logarithmische Skala: 1 heißt gleich viele Arbeitsplätze wie beschäftigte Einwohner; " +
         "Werte unter ¼ und über 4 haben die Endfarben."
-      : "Feste Skala von −20 °C bis +30 °C; dieselbe Farbe bedeutet an jedem Tag dieselbe Temperatur.";
+      : sectors
+        ? "Feste Skala von 0 bis 40 %; höhere Anteile haben die Endfarbe. Nur Kreise und Länder: " +
+          "Für Gemeinden veröffentlicht die BA keine Branchenzahlen."
+        : "Feste Skala von −20 °C bis +30 °C; dieselbe Farbe bedeutet an jedem Tag dieselbe Temperatur.";
   }
 
   function renderHeader() {
@@ -319,6 +443,24 @@
     const el = $("run-time");
     el.replaceChildren();
     const small = document.createElement("small");
+    if (state.theme === "sectors") {
+      const sectors = state.sectors;
+      const kreisDate = dateFmt.format(new Date(`${sectors.kreis_reference_date}T00:00:00Z`));
+      el.append(`Stichtag ${kreisDate} · Statistik der Bundesagentur für Arbeit`);
+      small.textContent =
+        " · Kreise: Regionalreport über Beschäftigte; Länder: Beschäftigte nach Wirtschaftszweigen" +
+        (sectors.land_reference_date !== sectors.kreis_reference_date
+          ? ` (Stichtag ${dateFmt.format(new Date(`${sectors.land_reference_date}T00:00:00Z`))})` : "");
+      el.append(small);
+      const b = sectors.bund;
+      const part = (measure, label) => `${label} ${sectorText(b, measure)}`;
+      $("bund").textContent =
+        `Deutschland insgesamt: ${part("metal_electrical_steel", "Metall-, Elektro- und Stahlindustrie")}; ` +
+        `darunter ${part("motor_vehicles", "Automobil")}, ${part("machinery", "Maschinenbau")}, ` +
+        `${part("steel", "Stahl")}; ${part("chemicals", "Chemie")} ` +
+        `(Anteile an ${numberFmt.format(b.employees_total)} Beschäftigten).`;
+      return;
+    }
     if (state.theme === "employment") {
       const e = state.employment;
       el.append(`Stichtag ${referenceDate()} · ${e.source.publisher}`);
@@ -352,6 +494,10 @@
     const temperature = state.theme === "temperature";
     $("extreme-field").hidden = !temperature;
     $("weighting-field").hidden = !temperature;
+    // The BA publishes no sector figures for Gemeinden.
+    const sectors = state.theme === "sectors";
+    document.querySelector('input[name="level"][value="gem"]').disabled = sectors;
+    $("level-note").hidden = !sectors;
     for (const node of document.querySelectorAll("[data-theme]")) {
       node.hidden = node.dataset.theme !== state.theme;
     }
@@ -381,6 +527,10 @@
 
   function setTheme(map, theme) {
     state.theme = theme;
+    if (theme === "sectors" && state.level === "gem") {
+      document.querySelector('input[name="level"][value="krs"]').checked = true;
+      setLevel(map, "krs");
+    }
     for (const level of LEVELS) map.setPaintProperty(`${level}-fill`, "fill-color", colourExpression());
     applyValues(map, LEVELS);
     renderHeader();
@@ -541,14 +691,28 @@
       document.querySelector('input[name="theme"][value="employment"]').disabled = true;
       $("theme-note").hidden = false;
     }
+    try {
+      const sectors = await loadJson("data/sectors.json");
+      if (sectors.schema !== 1) throw new Error("sectors.json: unexpected schema");
+      state.sectors = sectors;
+    } catch (error) {
+      document.querySelector('input[name="theme"][value="sectors"]').disabled = true;
+      $("theme-note").hidden = false;
+    }
     // Tiefstwerte need min_ keys in values.json.
     if (!hasExtreme("min")) {
       document.querySelector('input[name="extreme"][value="min"]').disabled = true;
       $("extreme-note").hidden = false;
     }
-    if (window.location.hash === THEMES.employment.hash && state.employment) {
-      state.theme = "employment";
-      document.querySelector('input[name="theme"][value="employment"]').checked = true;
+    for (const [name, theme] of Object.entries(THEMES)) {
+      if (window.location.hash === theme.hash && (name === "temperature" || state[name])) {
+        state.theme = name;
+        document.querySelector(`input[name="theme"][value="${name}"]`).checked = true;
+      }
+    }
+    if (state.theme === "sectors") {
+      state.level = "krs";
+      document.querySelector('input[name="level"][value="krs"]').checked = true;
     }
     renderHeader();
     renderLegend();
