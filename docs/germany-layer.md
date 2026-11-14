@@ -1,7 +1,9 @@
 # Germany layer: operation, checks and measurements
 
 Extends the Berlin pipeline to Bund → Länder → Kreise → Gemeinden with the
-current 24-hour DWD ICON-D2-RUC forecast and Zensus 2022 total population.
+current 24-hour DWD ICON-D2-RUC forecast and Zensus 2022 total population
+(first theme) and with employment per Gemeinde from the Statistik der
+Bundesagentur für Arbeit (second theme, [below](#second-theme-employment)).
 Berlin assets, views, sensor and outputs are unchanged; Germany objects carry
 the `de_` prefix. Sources and licences: [data-sources.md](data-sources.md).
 Measured numbers: [germany-layer-facts.md](germany-layer-facts.md).
@@ -104,12 +106,16 @@ uv run --env-file .env python -m src.export_germany_dashboard --serve
 | File in `web/germany-dashboard/data/` | Content | Rebuilt |
 | --- | --- | --- |
 | `vg250-2022-12-31.pmtiles` | Land, Kreis and Gemeinde outlines, zoom 4-10, property `key` = regional key only | once per geography version, or with `--rebuild-tiles` (needs `tippecanoe`) |
+| `employment.json` | schema 1, newest BA reference date: per region `jobs_ratio` with `jobs_ratio_status`, and employees at place of work and of residence, commuters in and out, establishments (null where not published, with `status`); names come from `values.json` (same keys). Not written when the BA data is not loaded; the page then offers the temperature theme only | every export |
 | `values.json` | schema 2, current complete run: per region the 24-hour maximum and minimum of shade apparent temperature and air temperature with its lead hour (an index into `valid_times_berlin`; read from the `de_current_*_summary` views), residents, names. Keys are descriptive, e.g. `max_apparent_temperature_shade_population_weighted_c`, `min_temperature_c`. The `min_` keys were added without a schema change (still 2): the page enables Tiefstwerte only when they are present | every export |
 
 Generated files are git-ignored. The page joins values to outlines with
 MapLibre feature-state (`promoteId: "key"`), so tiles are never rebuilt per run.
 
-**What it shows.** All user-facing text is German; the page title is
+**What it shows.** All user-facing text is German. Two themes share the page
+(switch "Thema"); this paragraph describes the temperature theme, the
+employment theme is described [above](#second-theme-employment). The
+temperature page title is
 "Deutschland: Höchst- und Tiefsttemperaturen über die nächsten 24 Stunden".
 A choropleth of the highest or lowest shade apparent temperature over the
 next 24 hours at Land, Kreis or Gemeinde level (radio buttons, keyboard
@@ -139,7 +145,8 @@ drawn (D5).
 `206 Partial Content` for first, middle and suffix ranges, no content
 encoding). The page loads tiles from its own origin; the host sends no CORS
 headers, so the tiles cannot be loaded from a page on another domain. For a
-new run, re-export and upload `data/values.json` only.
+new run, re-export and upload `data/values.json` only; for a new BA vintage,
+`data/employment.json`.
 
 ## Aggregation
 
@@ -151,7 +158,7 @@ and [ADR 018](adr/018-sql-aggregation-and-cell-storage.md).
 
 ## Things to know
 
-- Every job applies the three idempotent schema files in `sql/germany/` first,
+- Every job applies the idempotent schema files in `sql/germany/` first,
   so a forecast run applies them once per lead time. This is simple and safe;
   it is why no separate install step exists.
 - Building the boundary tiles needs `tippecanoe`, once per geography version.
@@ -163,6 +170,61 @@ and [ADR 018](adr/018-sql-aggregation-and-cell-storage.md).
   can run on them (588 MB). If storage becomes an issue, the trade-off has to
   be revisited and those checks redesigned first (ADR 018).
 
+## Second theme: employment
+
+Employees subject to social insurance by place of residence and place of
+work, commuters and establishments, from the BA *Gemeindedaten* (yearly,
+30 June; sources: [data-sources.md](data-sources.md#germany-layer-ba-gemeindedaten-employment)).
+Decisions: [ADR 019](adr/019-indicator-model-and-ba-gemeindedaten.md).
+
+```bash
+# after run_static (needs the hierarchy): download, load and check one vintage
+uv run --env-file .env python -m src.germany.run_employment            # newest known: 2025-06-30
+uv run --env-file .env python -m src.germany.run_employment --reference-date 2026-06-30
+```
+
+`run_employment` runs the Dagster job `germany_employment`; it is safe to
+repeat (raw rows and indicator values of the reference date are replaced).
+`ba_gemeindedaten_release_sensor` (off by default, like the DWD sensor) sends
+one HEAD request a day for the vintage after the newest one loaded and
+starts the job when the file is published. A vintage not yet in the contract
+loads if its structure matches; its key-coverage check then fails until its
+territorial changes are reviewed and added to `src/germany/contract.py`.
+
+| Step | Object | Notes |
+| --- | --- | --- |
+| Raw | `raw.de_ba_gemeindedaten` | both data sheets as delivered; `column_01` … `column_13` = BA column numbers; `*` = suppressed |
+| Catalogue | `normalized.de_indicator_source`, `normalized.de_indicator` | source citation, terms, update cycle; 13 indicators with label, unit, source column and whether they add up across levels |
+| Values | `normalized.de_indicator_value` | one row per geography version, level, region, indicator and reference date; `value_status` = `value`, `suppressed` or `not_reported` (with `status_reason`); Kreis, Land and Germany are the BA's published rows; a Kreis with one Gemeinde takes its Gemeinde row |
+| Serving | `analytical.de_current_employment` | newest reference date, one row per region and level: employees at place of work and of residence, commuters in and out, establishments, each with its status, and `jobs_ratio` = workplace / residence (own calculation) with `jobs_ratio_status` |
+
+| # | Check | Rule | Severity |
+| --- | --- | --- | --- |
+| 8 | `de_ba_source_contract` | both sheets: 16 Länder, one Germany and one unassigned row, values only digits or `*`, `*` only in Gemeinde rows; a pinned vintage also its checksum and row counts | error |
+| 9 | `de_ba_column_identities` | every row: residence = men + women; Germans + foreigners ≤ residence; commuters in ≤ workplace − same place; commuters out ≤ residence − same place | error |
+| 10 | `de_ba_key_coverage` | BA Gemeinde keys against the hierarchy: only the unincorporated areas and the territorial changes listed in the contract for this vintage; every Kreis and Land matched | error |
+| 11 | `de_ba_source_totals` | additive indicators: Σ Gemeinden = Kreis exactly where nothing is suppressed, ≤ Kreis where something is; Σ Kreise = Land; Σ Länder + unassigned row = Germany | error |
+
+**Example query.** The ten Kreise with the most jobs per employed resident:
+
+```sql
+SELECT region_name, employees_workplace, employees_residence,
+       ROUND(jobs_ratio::numeric, 2) AS jobs_ratio
+FROM analytical.de_current_employment
+WHERE level = 'krs'
+ORDER BY jobs_ratio DESC
+LIMIT 10;
+```
+
+**On the map.** A theme switch (Temperatur / Beschäftigung, link
+`#beschaeftigung`) changes title, header, legend and details. The colour is
+`jobs_ratio` on a fixed logarithmic scale (ColorBrewer PuOr, ¼ to 4, 1 in the
+middle; orange: more employed residents than jobs, purple: more jobs). Two
+greys: values suppressed by the BA, and regions the BA does not report. The
+details show the published values as delivered, the ratio marked as own
+calculation; the footer cites the BA and links its statistics homepage, as
+the terms of use ask.
+
 ## Decisions
 
 [ADR 014](adr/014-equal-area-projection-for-germany.md) equal-area projection ·
@@ -170,4 +232,5 @@ and [ADR 018](adr/018-sql-aggregation-and-cell-storage.md).
 [ADR 016](adr/016-map-pmtiles-and-json-values.md) map: PMTiles and JSON ·
 [ADR 017](adr/017-zensus-2022-population-and-source-checks.md) Zensus and source
 checks · [ADR 018](adr/018-sql-aggregation-and-cell-storage.md) SQL aggregation
-and cell storage.
+and cell storage · [ADR 019](adr/019-indicator-model-and-ba-gemeindedaten.md)
+indicator model and BA Gemeindedaten.

@@ -1,4 +1,8 @@
-# Draft: v2.0-germany (to be published by the maintainer)
+# v2.0-germany-temp-layer
+
+Published on 14 Nov 2026 as tag and GitHub release `v2.0-germany-temp-layer`
+(merge of PR #8). The next release is drafted in
+[release-notes-v2.1-germany-employment.md](release-notes-v2.1-germany-employment.md).
 
 ## Summary
 

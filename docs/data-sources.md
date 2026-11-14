@@ -339,6 +339,62 @@ geändert" (exactly zero, or changed to zero). No legend was found for the
 database table itself; the project applies this definition and keeps the
 original sign in raw.
 
+## Germany layer: BA Gemeindedaten (employment)
+
+- Publisher: Statistik der Bundesagentur für Arbeit (BA), Nürnberg.
+- Product 229: *Gemeindedaten der sozialversicherungspflichtig Beschäftigten
+  nach Wohn- und Arbeitsort*; Deutschland, Länder, Regierungsbezirke, Kreise
+  und Gemeinden. Yearly, reference date 30 June; the 2025 file was created on
+  15 Jan 2026, the next is announced for 15 Jan 2027.
+- Download, no login:
+  `https://statistik.arbeitsagentur.de/Statistikdaten/Detail/<YYYYMM>/iiia6/beschaeftigung-sozbe-gemband/gemband-dlk-0-<YYYYMM>-xlsx.xlsx?__blob=publicationFile&v=1`
+  (`<YYYYMM>` = year and month of the reference date, e.g. `202506`). A HEAD
+  request answers 200 with an xlsx content type for a published vintage and
+  404 otherwise.
+- Pinned vintage 2025-06-30: 1,608,751 bytes, SHA-256
+  `a89513bdd5bfa967f9b81b86910e2e5d04376f82ef56b4e86f2212922a5953ff`; sheet
+  `Gemeindedaten` with 10,752 Gemeinde, 294 Kreis, 20 Regierungsbezirk and 16
+  Land rows; sheet `Länder` with 16 Länder, the row "keine Angabe/keine
+  Zuordnung möglich" and the Germany row.
+- Columns (BA numbering): 1 employees by place of residence; 2–8 of which men,
+  women, Germans, foreigners, under 20, 20 to under 25, 55 and older;
+  9 employees at place of work; 10 place of residence equals place of work;
+  11 commuters in; 12 commuters out; 13 establishments. Employees subject to
+  social insurance only (no civil servants, self-employed or marginal jobs).
+- Territorial status: that of the reference date. Gemeinde keys are 8-digit
+  AGS; matched to `normalized.de_gemeinde.ags`. Against VG250 of 31 Dec 2022:
+  4 BA Gemeinden without a VG250 key (07232503 Obergeckler, 14522275 Jahnatal,
+  16061119 Uder, 16076094 Berga-Wünschendorf), 38 incorporated VG250 Gemeinden
+  without a BA row (merged after 2022; listed in `src/germany/contract.py`),
+  and 204 unincorporated areas without employees. Kreise: 400 of 400 match.
+- Suppression (*Geheimhaltung*, BA *Erläuterungen*): values below 3 and
+  values that would allow them to be recomputed are shown as `*`; for
+  Gemeinden with fewer than three establishments or a dominant establishment
+  all place-of-work values (columns 9–11) are deleted. Kreis and Land totals
+  include the suppressed values. The 2025 file has 7,723 `*` cells, all in
+  Gemeinde rows.
+- Commuters: persons whose place of residence or of work is unknown are not
+  counted as commuters. The BA explains that employees reported under the
+  establishment number of a head office are counted at the head office's
+  Gemeinde ("Klumpungen"), so place-of-work counts can be too high there and
+  too low at branch locations.
+- Loaded into: `raw.de_ba_gemeindedaten` (values as delivered text), then
+  `normalized.de_indicator_value` (ADR 019).
+- Terms of use (imprint of the file): "Daten und Tabellen dürfen uneingeschränkt
+  verwendet werden. Informationen dürfen (auch auszugsweise) gespeichert und mit
+  Quellenangabe weitergegeben, vervielfältigt und verbreitet werden. Die Inhalte
+  dürfen nicht verändert oder verfälscht werden. Eigene Berechnungen sind
+  erlaubt, jedoch als solche kenntlich zu machen. Im Fall einer Veröffentlichung
+  im Internet soll dies mit einer Verlinkung auf die Homepage der Statistik der
+  Bundesagentur für Arbeit erfolgen."
+- Citation (*Zitierhinweis*):
+
+```text
+Statistik der Bundesagentur für Arbeit, Tabellen, Gemeindedaten der
+sozialversicherungspflichtig Beschäftigten nach Wohn- und Arbeitsort,
+Nürnberg, Stichtag: 30.6.2025
+```
+
 ## Combined attribution
 
 When presenting the serving dataset or its downloadable derivatives, a concise

@@ -24,6 +24,10 @@ and serving contract are shaped as they are.
 - ADR 017: [Zensus 2022 population and the checks against the source](017-zensus-2022-population-and-source-checks.md)
 - ADR 018: [SQL aggregation of the forecast, and per-cell storage](018-sql-aggregation-and-cell-storage.md)
 
+## Germany layer, second theme (v2.1)
+
+- ADR 019: [A theme-independent indicator model, filled first with the BA Gemeindedaten](019-indicator-model-and-ba-gemeindedaten.md)
+
 Earlier working notes or development-era ADRs may remain in this directory as
 project detail. The records linked above describe the supported handoff state;
 the authoritative operational commands are in [../../runbook.md](../../runbook.md).
