@@ -1,4 +1,4 @@
-# Draft: v2.1-germany-employment-layer (to be published by the maintainer)
+# v2.1: Add employment per Gemeinde theme
 
 ## Summary
 
