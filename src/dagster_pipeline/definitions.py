@@ -36,6 +36,9 @@ from src.dagster_pipeline.assets.database_weather_normalized import (
 from src.dagster_pipeline.assets.database_weather_raw import (
     WEATHER_RAW_ASSETS,
 )
+from src.dagster_pipeline.assets.germany_employment import (
+    GERMANY_EMPLOYMENT_ASSETS,
+)
 from src.dagster_pipeline.assets.germany_forecast import (
     GERMANY_FORECAST_ASSETS,
 )
@@ -53,6 +56,9 @@ from src.dagster_pipeline.checks.database_analytical import (
 )
 from src.dagster_pipeline.checks.database_bridge import (
     BRIDGE_CHECKS,
+)
+from src.dagster_pipeline.checks.germany_employment import (
+    GERMANY_EMPLOYMENT_CHECKS,
 )
 from src.dagster_pipeline.checks.germany_forecast import (
     GERMANY_FORECAST_CHECKS,
@@ -97,6 +103,9 @@ from src.dagster_pipeline.jobs import (
     ICON_D2_RUC_RAW_ACQUISITION_JOB,
     STATIC_DASHBOARD_EXPORT_JOB,
 )
+from src.dagster_pipeline.sensors.ba_gemeindedaten import (
+    ba_gemeindedaten_release_sensor,
+)
 from src.dagster_pipeline.sensors.dashboard_export import (
     dashboard_export_sensor,
 )
@@ -129,6 +138,7 @@ defs = dg.Definitions(
         *GERMANY_RAW_ASSETS,
         *GERMANY_NORMALIZED_ASSETS,
         *GERMANY_FORECAST_ASSETS,
+        *GERMANY_EMPLOYMENT_ASSETS,
     ],
     asset_checks=[
         *POPULATION_CHECKS,
@@ -144,6 +154,7 @@ defs = dg.Definitions(
         *GERMANY_RAW_CHECKS,
         *GERMANY_NORMALIZED_CHECKS,
         *GERMANY_FORECAST_CHECKS,
+        *GERMANY_EMPLOYMENT_CHECKS,
     ],
     jobs=[
         OPERATIONAL_STATIC_JOB,
@@ -160,5 +171,6 @@ defs = dg.Definitions(
         dwd_icon_d2_ruc_availability_sensor,
         historical_trajectories_sensor,
         dashboard_export_sensor,
+        ba_gemeindedaten_release_sensor,
     ],
 )
