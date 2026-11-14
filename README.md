@@ -3,7 +3,8 @@
 > **Two parts in one repository.** The original Berlin capstone (tag
 > `v1.0-capstone-submitted`) is described below. Since v2.0 the repository also
 > holds a **Germany layer** that extends the same pipeline to Bund, Länder,
-> Kreise and Gemeinden; see [Germany layer](#germany-layer) at the end.
+> Kreise and Gemeinden, with a temperature theme and, since v2.1, an
+> employment theme; see [Germany layer](#germany-layer) at the end.
 
 A reproducible geospatial data pipeline that combines current DWD temperature
 forecasts, 31 years of historical temperature, and official population data for
@@ -319,9 +320,13 @@ Gemeinden. For each Gemeinde it combines the current 24-hour DWD ICON-D2-RUC
 forecast (air temperature and shade apparent temperature, area-weighted from
 the model grid) with Zensus 2022 total population, rolls the values up to
 Kreis, Land and Bund with both an area and a population weighting, checks the
-results against the sources, and shows them on a static MapLibre map. Berlin
-tables, views, the sensor and the Berlin dashboard are unchanged; Germany
-objects carry the prefix `de_`.
+results against the sources, and shows them on a static MapLibre map. A
+second theme adds employment per Gemeinde from the Statistik der
+Bundesagentur für Arbeit (BA): employees by place of residence and of work,
+commuters and establishments, loaded into a theme-independent indicator model
+and checked against the BA's own published totals. Berlin tables, views, the
+sensor and the Berlin dashboard are unchanged; Germany objects carry the
+prefix `de_`.
 
 ![Germany map, Kreise: highest shade apparent temperature in the next 24 hours, area-weighted, on a fixed scale from -20 to +30 °C. Forecast run 2026-11-14 09:00 UTC.](docs/images/germany-map.png)
 
@@ -330,6 +335,13 @@ area-weighted (forecast run 2026-11-14 09:00 UTC). The page is in German; a
 switch shows the lowest values instead (Höchstwerte / Tiefstwerte). The colour
 scale is fixed from -20 to +30 °C, so a colour means the same temperature on
 every day.*
+
+![Germany map, Kreise: employees at place of work per employee at place of residence, BA reference date 30 June 2025, on a fixed logarithmic scale from 1/4 to 4.](docs/images/germany-employment-map.png)
+
+*Employment theme: employees subject to social insurance at their place of
+work per employee living there, by Kreis (BA, 30 June 2025; own
+calculation). Orange: more employed residents than jobs; purple: more jobs
+than employed residents.*
 
 ### Run it
 
@@ -340,6 +352,9 @@ uv run --env-file .env python -m src.germany.run_static
 # per forecast run (UTC label; DWD keeps runs for about 24 hours)
 uv run --env-file .env python -m src.germany.run_forecast \
   --run-time "$(date -u -d '3 hours ago' +%Y%m%dT%H00)"
+
+# employment theme: download, load and check the BA Gemeindedaten (yearly)
+uv run --env-file .env python -m src.germany.run_employment
 
 # export the map and open a local preview (http://127.0.0.1:8766/)
 uv run --env-file .env python -m src.export_germany_dashboard --serve
@@ -368,6 +383,20 @@ ORDER BY 3 DESC
 LIMIT 5;
 ```
 
+The ten Kreise with the most jobs per employed resident (BA, 30 June 2025):
+
+```sql
+SELECT region_name, employees_workplace, employees_residence,
+       ROUND(jobs_ratio::numeric, 2) AS jobs_ratio
+FROM analytical.de_current_employment
+WHERE level = 'krs'
+ORDER BY jobs_ratio DESC
+LIMIT 10;
+```
+
+Schweinfurt leads with 2.45 (54,018 jobs, 22,087 employed residents), then
+Wolfsburg with 2.16.
+
 ### Checks against the sources
 
 | # | Check | What it tests |
@@ -381,17 +410,27 @@ LIMIT 5;
 | 7 | `de_berlin_cross_layer_consistency` | Berlin as one Gemeinde agrees with the roll-up of its 542 planning areas (tolerance 0.01 °C, warning) |
 
 Two more checks verify that the raw VG250 and Zensus files match their pinned
-checksums and counts.
+checksums and counts. The employment theme adds:
+
+| # | Check | What it tests |
+| --- | --- | --- |
+| 8 | `de_ba_source_contract` | the BA file's structure: 16 Länder in both sheets, a Germany and an unassigned row, only numbers or `*` (suppressed), `*` only for Gemeinden; checksum and row counts for a pinned vintage |
+| 9 | `de_ba_column_identities` | in every row: residence = men + women, and Germans + foreigners and the commuter counts within their bounds |
+| 10 | `de_ba_key_coverage` | BA Gemeinde keys against VG250: only unincorporated areas and the mergers listed for the vintage |
+| 11 | `de_ba_source_totals` | Gemeinden add up to their Kreis (exactly where nothing is suppressed), Kreise to their Land, Länder plus the unassigned row to Germany |
 
 ### Adding a further theme
 
-The hierarchy does not change when a theme is added. A new theme is one table
-keyed by the geography version and a regional key (Gemeinde, Kreis or Land),
-plus the same roll-up pattern, its own source contract (URL, reference date,
-licence, checksum) and checks against the source's published totals. As a
-candidate for a next theme, the Bundesagentur für Arbeit publishes employees
-and establishments per Gemeinde; in its 30 June 2025 file, 10,748 of 10,752
-Gemeinde keys match the VG250 keys used here (measured 14 Nov 2026).
+The hierarchy does not change when a theme is added. A theme whose source
+publishes values per region goes into the indicator tables
+([ADR 019](docs/adr/019-indicator-model-and-ba-gemeindedaten.md)): catalogue
+rows (`de_indicator_source`, `de_indicator`), a raw table as delivered, a
+refresh that writes `de_indicator_value` with an explicit status for every
+region (value, suppressed, not reported), a serving view, a source contract
+and checks against the source's own totals. The BA Gemeindedaten are the
+first source built this way. Candidates for the next step are the BA's
+quarterly reports per Kreis (employees by sector groups) and its pay
+statistics per Kreis.
 
 ### Limitations
 
@@ -401,6 +440,12 @@ Gemeinde keys match the VG250 keys used here (measured 14 Nov 2026).
   2022); VG250 boundaries have the status of 31 Dec 2022.
 - VG250 is a generalised 1:250,000 geometry.
 - Shade apparent temperature does not include solar radiation (as in Berlin).
+- Employment: only employees subject to social insurance (no civil servants,
+  self-employed or marginal jobs). The BA suppresses small values: 1,261
+  Gemeinden have no ratio. The BA uses the territorial status of its
+  reference date, the map that of 2022: 38 Gemeinden merged since then have
+  no value, and a Gemeinde that absorbed another shows its larger 2025 value
+  on its 2022 outline.
 - The values are measurements: no thresholds, classes or exposure scores.
 - A portfolio project run on a local machine, not an operated service.
 
@@ -409,8 +454,11 @@ Gemeinde keys match the VG250 keys used here (measured 14 Nov 2026).
 Boundaries: © GeoBasis-DE / BKG 2022 (Daten verändert), dl-de/by-2-0.
 Population: Zensus 2022, © Statistische Ämter des Bundes und der Länder,
 Deutschland, 2026, dl-de/by-2-0. Forecast: Deutscher Wetterdienst (DWD),
-ICON-D2-RUC, CC BY 4.0. Aggregation by this project; not an official
-publication. Sources, checksums and licences are listed in
+ICON-D2-RUC, CC BY 4.0. Employment: Statistik der Bundesagentur für Arbeit,
+Gemeindedaten der sozialversicherungspflichtig Beschäftigten nach Wohn- und
+Arbeitsort, Stichtag 30.6.2025 (<https://statistik.arbeitsagentur.de/>); the
+ratio of place of work to place of residence is this project's own
+calculation. Aggregation by this project; not an official publication. Sources, checksums and licences are listed in
 [docs/data-sources.md](docs/data-sources.md).
 
 ### Decisions
@@ -422,4 +470,6 @@ projection),
 [ADR 017](docs/adr/017-zensus-2022-population-and-source-checks.md) (Zensus
 and source checks),
 [ADR 018](docs/adr/018-sql-aggregation-and-cell-storage.md) (SQL aggregation
-and cell storage).
+and cell storage),
+[ADR 019](docs/adr/019-indicator-model-and-ba-gemeindedaten.md) (indicator
+model and BA Gemeindedaten).

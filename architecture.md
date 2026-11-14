@@ -267,7 +267,9 @@ Berlin's ICON cell polygons (`normalized.icon_cell`) and the Berlin function
 objects. Operation and measurements are in
 [docs/germany-layer.md](docs/germany-layer.md); decisions are in ADRs
 [014](docs/adr/014-equal-area-projection-for-germany.md) to
-[018](docs/adr/018-sql-aggregation-and-cell-storage.md).
+[019](docs/adr/019-indicator-model-and-ba-gemeindedaten.md). Two themes use
+the hierarchy: the temperature forecast and, since v2.1, employment per
+Gemeinde from the Statistik der Bundesagentur für Arbeit.
 
 ### Sources
 
@@ -276,14 +278,15 @@ objects. Operation and measurements are in
 | BKG VG250 | Staat, Länder, Kreise, Gemeinden; status 31 Dec 2022, EPSG:25832 | Static (one vintage, checksum pinned) | Administrative hierarchy and geometry. |
 | Zensus 2022 table 1000A-1003 | Länder, Kreise, Gemeinden; reference date 15 May 2022 | Static (one census, checksum pinned) | Total population per region and the published totals for the source checks. |
 | DWD ICON-D2-RUC | Forecast run, lead time, grid cell | Rolling publication (shared with Berlin) | Temperature, humidity and wind fields. |
+| BA Gemeindedaten (product 229) | Germany, Länder, Kreise, Gemeinden; reference date 30 June, territorial status of that date | Yearly (January); structure contract for every vintage, checksum pinned for the known one | Employees by place of residence and of work, commuters, establishments. |
 
 ### Relations by layer
 
 | Schema | Relations |
 | --- | --- |
-| `raw` | `de_vg250`, `de_zensus2022_population` |
-| `normalized` | `de_land`, `de_kreis`, `de_gemeinde` (hierarchy, EPSG:3035 geometry, area), `de_gemeinde_population`, `de_zensus_published_population`, `de_icon_cell`, `de_icon_cell_gemeinde_bridge`, `de_forecast_run`, `de_icon_cell_value`, `de_gemeinde_forecast` |
-| `analytical` | `de_current_run`; `de_current_{gemeinde,kreis,land,bund}_forecast_25h`; `de_current_{gemeinde,kreis,land,bund}_summary` |
+| `raw` | `de_vg250`, `de_zensus2022_population`, `de_ba_gemeindedaten` |
+| `normalized` | `de_land`, `de_kreis`, `de_gemeinde` (hierarchy, EPSG:3035 geometry, area), `de_gemeinde_population`, `de_zensus_published_population`, `de_icon_cell`, `de_icon_cell_gemeinde_bridge`, `de_forecast_run`, `de_icon_cell_value`, `de_gemeinde_forecast`; `de_indicator_source`, `de_indicator`, `de_indicator_value` (theme-independent indicators, ADR 019) |
+| `analytical` | `de_current_run`; `de_current_{gemeinde,kreis,land,bund}_forecast_25h`; `de_current_{gemeinde,kreis,land,bund}_summary`; `de_current_employment` |
 
 Kreis, Land and Bund values are rolled up from Gemeinden with an area and a
 population weighting (ADR 015). The `_summary` views hold the 24-hour maximum
@@ -294,13 +297,14 @@ lead times, the same switching rule as Berlin's 25-hour views.
 
 ### Orchestration
 
-Three jobs in the group `germany`:
+Four jobs in the group `germany`:
 
 | Job | Command | What it does |
 | --- | --- | --- |
 | `germany_static` | `python -m src.germany.run_static` | VG250 and Zensus raw loads, hierarchy, population, grid subset and bridge, checks 1–4. Safe to repeat: an existing geography version from the same file is left unchanged. |
 | `germany_forecast` | (one partition per lead time, started by the next command) | The four raw DWD fields (shared with Berlin, files only) and the Germany aggregation in SQL. |
 | `germany_forecast_publish` | `python -m src.germany.run_forecast --run-time …` | Runs all 25 lead times, then publishes, applies retention and runs checks 5–7. |
+| `germany_employment` | `python -m src.germany.run_employment [--reference-date …]` | Downloads one BA vintage, loads it raw, refreshes the indicator values and runs checks 8–11. Started by `ba_gemeindedaten_release_sensor` (daily HEAD request for the next vintage; off by default) or by hand. |
 
 The Berlin availability sensor does not trigger these jobs and stays stopped
 by default. Retention keeps the newest complete run and the one before it, as
@@ -313,21 +317,24 @@ Seven asset checks compare the layer with its sources and itself (README,
 normalized hierarchy, source totals on the population, bridge coverage on the
 bridge, and completeness, plausibility and Berlin cross-layer consistency on
 the published forecast. Two further checks pin the raw files to their
-checksums and counts.
+checksums and counts. The employment theme adds four: the BA file's
+structure, identities between its columns, its keys against the hierarchy,
+and its Gemeinde, Kreis and Land values against its own published totals.
 
 ### Map
 
 `python -m src.export_germany_dashboard` writes a static folder in
 `web/germany-dashboard/`: a PMTiles archive of Land, Kreis and Gemeinde
-outlines (built once per geography version) and one `values.json` per run,
-joined in the browser by regional key (ADR 016). The page is in German and
-switches between the 24-hour maxima and minima on a fixed colour scale from
--20 to +30 °C. The host must answer HTTP Range requests; the local preview
+outlines (built once per geography version), one `values.json` per run and
+one `employment.json` per BA vintage, joined in the browser by regional key
+(ADR 016). The page is in German and has two themes: temperature (24-hour
+maxima or minima on a fixed scale from -20 to +30 °C) and employment (jobs at
+place of work per employed resident on a fixed logarithmic scale). The host must answer HTTP Range requests; the local preview
 (`src/germany/preview_server.py`) does.
 
 ### Things to know
 
-- Every job applies the three idempotent Germany schema files first, so a
+- Every job applies the idempotent Germany schema files first, so a
   forecast run applies them once per lead time. This is simple and safe; it is
   why no separate install step exists.
 - Building tiles needs the program `tippecanoe`, once per geography version.
@@ -335,9 +342,13 @@ switches between the 24-hour maxima and minima on a fixed colour scale from
 
 ### Adding a further theme
 
-A new theme is one table keyed by the geography version and a regional key,
-plus the same roll-up pattern. The hierarchy tables do not change. It needs its
-own source contract and checks against the source's published totals.
+A theme that publishes values per region uses the indicator tables (ADR 019):
+catalogue rows in `de_indicator_source` and `de_indicator`, a raw table as
+delivered, a refresh function that writes `de_indicator_value` with an
+explicit status for every region, a serving view, a source contract and
+checks against the source's own published totals. The hierarchy and the
+indicator tables do not change. A theme that is computed from a grid, like
+the forecast, keeps its own tables and roll-ups.
 
 ## Failure boundaries and restart behavior
 

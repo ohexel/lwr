@@ -6,6 +6,7 @@
   --page: #f6f8fa;
   --focus: #0969da;
   --nodata: #c9ced6;
+  --suppressed: #8f969f;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color: var(--ink);
   background: var(--page);
@@ -25,6 +26,9 @@ h1 { margin: 0.2rem 0 0.4rem; font-size: 1.6rem; }
   grid-template-columns: minmax(260px, 320px) 1fr;
   gap: 1rem;
   padding: 0 1.5rem 1rem;
+  /* The map keeps its own height: if it stretched with the control column,
+     every change of the details panel would resize and shift the map. */
+  align-items: start;
 }
 
 .controls {
@@ -56,6 +60,9 @@ input[type="radio"]:focus-visible, a:focus-visible {
 .legend-nodata { margin: 0.2rem 0 0; font-size: 0.8rem; color: var(--muted); }
 .swatch { display: inline-block; width: 12px; height: 12px; vertical-align: -1px; border: 1px solid var(--line); }
 .swatch.nodata { background: var(--nodata); }
+.swatch.suppressed { background: var(--suppressed); }
+.legend-ends { display: flex; justify-content: space-between; gap: 0.5rem; margin: 0 0 0.2rem; font-size: 0.75rem; color: var(--muted); }
+.legend-ends[hidden], fieldset[hidden], [data-theme][hidden] { display: none; }
 
 .details { border-top: 1px solid var(--line); padding-top: 0.75rem; min-height: 9rem; }
 .details h2 { margin: 0 0 0.15rem; font-size: 1.1rem; }
@@ -67,7 +74,7 @@ input[type="radio"]:focus-visible, a:focus-visible {
 .hint { color: var(--muted); font-size: 0.9rem; margin: 0; }
 .bund { margin: 0; font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 0.75rem; }
 
-.map-wrap { position: relative; min-height: 70vh; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.map-wrap { position: sticky; top: 1rem; height: max(calc(100vh - 8rem), 420px); border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
 #map { position: absolute; inset: 0; background: #eef1f4; }
 .tooltip {
   position: absolute;
@@ -90,5 +97,5 @@ input[type="radio"]:focus-visible, a:focus-visible {
 @media (max-width: 760px) {
   .layout { grid-template-columns: 1fr; padding: 0 0.75rem 1rem; }
   .masthead, .notes { padding-left: 0.75rem; padding-right: 0.75rem; }
-  .map-wrap { min-height: 60vh; order: -1; }
+  .map-wrap { position: relative; top: auto; height: 60vh; order: -1; }
 }

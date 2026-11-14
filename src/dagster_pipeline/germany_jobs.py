@@ -1,7 +1,14 @@
 """Germany-layer jobs. The Berlin jobs and sensor are unchanged (F)."""
 
+from datetime import date
+
 import dagster as dg
 
+from src.dagster_pipeline.assets.germany_employment import (
+    GERMANY_EMPLOYMENT_ASSETS,
+    normalized_de_indicator_value,
+    raw_de_ba_gemeindedaten,
+)
 from src.dagster_pipeline.assets.germany_forecast import (
     analytical_de_current_forecast_25h,
     normalized_de_gemeinde_forecast,
@@ -47,4 +54,31 @@ GERMANY_PUBLISH_JOB = dg.define_asset_job(
     ),
 )
 
-GERMANY_JOBS = [GERMANY_STATIC_JOB, GERMANY_FORECAST_JOB, GERMANY_PUBLISH_JOB]
+GERMANY_EMPLOYMENT_JOB = dg.define_asset_job(
+    name="germany_employment",
+    selection=dg.AssetSelection.assets(*GERMANY_EMPLOYMENT_ASSETS),
+    description=(
+        "Acquire one vintage of the BA Gemeindedaten (run config: reference "
+        "date), load it raw and refresh the indicator values on the hierarchy, "
+        "with the BA source checks. Needs germany_static first."
+    ),
+)
+
+
+def employment_run_config(reference_date: date) -> dict:
+    """Run config that sets the reference date of both employment assets."""
+    config = {"config": {"reference_date": reference_date.isoformat()}}
+    return {
+        "ops": {
+            raw_de_ba_gemeindedaten.op.name: config,
+            normalized_de_indicator_value.op.name: config,
+        }
+    }
+
+
+GERMANY_JOBS = [
+    GERMANY_STATIC_JOB,
+    GERMANY_FORECAST_JOB,
+    GERMANY_PUBLISH_JOB,
+    GERMANY_EMPLOYMENT_JOB,
+]

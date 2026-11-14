@@ -126,6 +126,7 @@ current run 2026-11-14 09:00 UTC.
 | Germany test cases (5 files, 45 test functions) | 69: 43 in the default suite, 5 integration, 21 acceptance |
 | Germany integration tests (`-m integration`) | 5 passed in 19.1 s |
 | Germany acceptance tests on the installed data | 21 passed in 230.2 s |
+| Same on the branch `germany-employment` (second theme) | default suite 181 passed, 56 deselected; Germany test cases 82 in 6 files (54 functions): 53 default, 6 integration (passed in 14.1 s), 23 acceptance (passed in 166.6 s) |
 | `ruff check` | all checks passed |
 
 Diff against `main` outside the Germany paths: 5 files added, 46 modified;
@@ -134,6 +135,50 @@ Diff against `main` outside the Germany paths: 5 files added, 46 modified;
 (76 lines), and 51 lines of `uv.lock`, re-resolved when the ruff dev
 dependency was added (lock revision 3 to 5; it drops an orphaned `pyarrow`
 entry that no package depends on).
+
+## Employment theme: BA Gemeindedaten (measured 14 Nov 2026)
+
+Vintage 30 June 2025, on geography version `vg250-2022-12-31`.
+
+| Fact | Value |
+| --- | ---: |
+| xlsx file | 1,608,751 bytes |
+| Rows in sheet `Gemeindedaten`: Gemeinden / Kreise / Regierungsbezirke / Länder | 10,752 / 294 / 20 / 16 |
+| Rows in sheet `Länder`: Länder / unassigned / Germany | 16 / 1 / 1 |
+| `raw.de_ba_gemeindedaten` rows | 11,100 |
+| Suppressed cells (`*`), all in Gemeinde rows | 7,723 |
+| Gemeinden without employees at place of work (suppressed) | 1,257 |
+| BA Gemeinden without a VG250 key / incorporated VG250 Gemeinden without a BA row / unincorporated areas without a BA row | 4 / 38 / 204 |
+| Kreise with a Kreis row / taken from their single Gemeinde row | 294 / 106 |
+| `normalized.de_indicator_value` rows (13 indicators) | 148,291 |
+| of which Gemeinden: value / suppressed / not reported | 132,002 / 7,722 / 3,146 |
+| of which Kreise / Länder / Germany: value | 5,200 / 208 / 13 |
+| Size `raw.de_ba_gemeindedaten` / `normalized.de_indicator_value` (heap + indexes) | 17 MB / 81 MB |
+| `run_employment` (job `germany_employment`: download skipped, raw load, refresh, 4 checks) | 12.1 s |
+| Refresh `refresh_de_ba_indicators` | 5.3 s |
+| Download, structural check and parse of the file | 5.2 s |
+
+Checks on this vintage, all passing:
+
+| Check | Result |
+| --- | --- |
+| Source totals, Gemeinden to Kreis (294 Kreise × 10 additive indicators) | exact in every comparison without a suppressed part; with suppressed parts the published value is never below the visible sum; largest gap: establishments 12.2 %, employees under 20 10.4 %, Germans 8.2 %, employees at place of work 7.4 % |
+| Source totals, Kreise to Land (16 × 10) and Länder plus unassigned to Germany (10) | exact in all 170 comparisons |
+| Column identities, all 11,100 rows | 0 violations |
+| Key coverage | exactly the pinned exceptions |
+| Unassigned row ("keine Angabe/keine Zuordnung möglich") | 2,160 employees at place of work: the difference between Σ Länder (34,883,328) and Germany (34,885,488) |
+
+`jobs_ratio` (employees at place of work / employees at place of residence):
+
+| Level | With a ratio | Minimum | Median | Maximum | Above 1 |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Gemeinden | 9,487 of 10,990 | 0.00 | 0.48 | 39.0 (Büttel) | 1,449 |
+| Kreise | 400 | 0.41 | 0.90 | 2.45 (Schweinfurt) | 121 |
+| Länder | 16 | 0.86 | 1.00 | 1.32 | 8 |
+| Germany | 1 | | 1.007 | | |
+
+Map export with the employment theme (tiles exist): 21.3 s;
+`employment.json` 2,242,571 bytes, 247,945 gzip-compressed.
 
 ## Earlier measurements that decisions rest on
 
