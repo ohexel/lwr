@@ -159,8 +159,9 @@ and [ADR 018](adr/018-sql-aggregation-and-cell-storage.md).
 - `de_icon_cell_gemeinde_bridge_cell_idx` supports the foreign key from the
   bridge to the cells. Without it, rebuilding the bridge on an installed
   database takes about five times longer (648 s against 126 s).
-- Per-cell values are stored for the two retained runs; whether to keep that is
-  an open decision (ADR 018).
+- Per-cell values are stored for the two retained runs so that checks 6 and 7
+  can run on them (588 MB). If storage becomes an issue, the trade-off has to
+  be revisited and those checks redesigned first (ADR 018).
 
 ## Decisions
 

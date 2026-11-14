@@ -110,10 +110,13 @@ verification are below.
 ## Not included, next steps
 
 - A review and cut of the Germany tests is planned as a separate step.
-- `docs/germany-layer-facts.md` still holds the measurements of 9 Nov 2026 and
-  will be regenerated after the code freeze.
-- Open decision (ADR 018): whether to keep per-cell values, which cost 588 MB
-  for two runs, against the checks that need them.
+- `docs/germany-layer-facts.md` keeps the measurements of 9 Nov 2026 in their
+  dated sections; those of 14 Nov 2026 (static job, bridge rebuild, forecast
+  run, map export, tests) are added in a section of their own.
+- Per-cell values are kept so that checks 6 and 7 can run on them; they cost
+  588 MB for two runs (ADR 018). If storage becomes an issue, the trade-off
+  has to be revisited, and those checks redesigned before the cell table can
+  go.
 - The aggregation tie rule for the 24-hour maximum and minimum (earliest hour
   wins) is implemented in SQL. The acceptance tests compare it with a plain
   recomputation on real data, where ties are unlikely; a test with a
