@@ -120,3 +120,68 @@ results: 1.4 × 10⁻¹⁴ °C (floating-point summation order).
 | Germany tests incl. integration and acceptance (4 files) | 36 passed |
 | Germany acceptance tests on the installed database (run 19:00 UTC served) | 6 passed in 44 s (after M5: 7) |
 | Diff vs. `main` (lines removed from existing files) | 0 |
+
+## After WP11: static job, bridge rebuild, run and export (measured 2026-11-14)
+
+Measured on the `germany-layer` branch after WP11. Earlier sections keep their
+own dates; where a value below differs from one above, it is a new
+measurement, not a correction.
+
+### Static job and bridge
+
+| Fact | Value |
+| --- | ---: |
+| Static job `python -m src.germany.run_static`, wall time | 143.4 s |
+| Checks passed in the static job (2 raw contracts, hierarchy integrity, bridge coverage, key coverage, source totals) | 6 |
+| Gemeinden / cells / bridge rows (unchanged) | 10,990 / 82,381 / 184,464 |
+| `refresh_de_icon_bridge` (ST_Transform of cells + bridge index) | 126 s |
+| Same without the bridge index | 648 s |
+| Same, earlier measurement on empty tables (2026-11-09) | 102.7 s |
+| Bridge coverage (check 4 inputs), min / max | 0.9999999999998317 / 1.0000000000001266 |
+
+Comparison of the rebuilt cells and bridge with the previous ones (WP6):
+identical row sets; max absolute difference of `fraction_of_gemeinde`
+4.05 × 10⁻¹²; max relative difference of cell area 4.85 × 10⁻¹²; relative
+difference of intersection area up to 1.58 × 10⁻⁷ only for slivers (0.0026 m²),
+at most 5.7 × 10⁻¹⁰ for intersections of 1,000 m² or more.
+
+### Forecast run 2026-11-14 09:00 UTC (run label `20261114T0900`)
+
+| Fact | Value |
+| --- | ---: |
+| Lead times materialized / skipped | 25 / 0 |
+| Partitions, all 25 lead times, incl. DWD download and decoding | 141.5 s |
+| Publish | 35.8 s |
+| Checks 5, 6, 7 | pass |
+| Check 7, max difference, temperature | 0.00090 °C |
+| Check 7, max difference, apparent temperature | 0.00086 °C |
+| Check 7 for run 2026-11-09 19:00 UTC (re-run), temperature / apparent | 0.00067 °C / 0.00096 °C |
+| Check 7 tolerance | 0.01 °C |
+| `de_icon_cell_value`, 2 runs (`pg_total_relation_size`) | 588 MB |
+| `de_gemeinde_forecast`, 2 runs (`pg_total_relation_size`) | 194 MB |
+
+Retained runs after publish: 2026-11-09 19:00 UTC and 2026-11-14 09:00 UTC (the
+2026-11-09 18:00 UTC run was pruned). The current run is 2026-11-14 09:00 UTC.
+
+### Map export
+
+| Fact | Value |
+| --- | ---: |
+| Export with tile rebuild (tippecanoe v2.53.0) | 41.2 s |
+| `vg250-2022-12-31.pmtiles` | 13,139,513 bytes |
+| `values.json`, schema 2 | 3,511,495 bytes; 281,537 gzip-compressed |
+| `values.json`, schema 1, run 2026-11-09 19:00 UTC | 1,765,099 bytes; 320,873 gzip-compressed |
+| Headless Chromium at 1400 × 900 and 390 × 844: tooltip, details at Land / Kreis / Gemeinde, both weightings | works |
+| Console and page errors | 0 |
+| Horizontal overflow at 390 px | none |
+
+### Tests and scope
+
+| Fact | Value |
+| --- | ---: |
+| Default tests | 169 passed, 39 deselected (174 before WP12: 2 numpy tests and 3 `rollup_records` tests removed) |
+| Germany integration tests (4 files, `-m integration`) | 5 passed |
+| Integration and acceptance together | 12 passed |
+| Acceptance tests (`-m acceptance`) | 7 passed in 67.9 s |
+| `ruff` | all checks passed |
+| Berlin unchanged | `git diff --name-status ae4b17e -- . ':(exclude)*germany*' ':(exclude)docs/images'` lists only `docs/data-sources.md` (table name in the Zensus section) |

@@ -1,7 +1,8 @@
 # ADR 018: SQL aggregation of the forecast, and per-cell storage
 
 Status: Accepted on the `germany-layer` branch (14 Nov 2026). The storage
-question in the second part is an **open decision**, flagged below.
+choice in the second part is a deliberate trade-off that may need to be
+revisited if storage becomes an issue (see below).
 
 ## Context
 
@@ -49,7 +50,7 @@ command-line flag).
 The test of the aggregation now uses hand-computed expected values instead of a
 numpy comparison.
 
-### Store per-cell values, for now (open decision)
+### Store per-cell values, in order to enable checks
 
 `normalized.de_icon_cell_value` keeps the temperature and shade apparent
 temperature of every grid cell for the two retained runs: 2,059,525 rows per
@@ -70,18 +71,27 @@ Without the cell table, Gemeinde values could be aggregated straight from the
 staging table, saving the 588 MB, the run table and the retention code for
 cells. Check 7 would then need to be redesigned.
 
-**Open decision for later:** the trade-off between storage and speed on one
-side, and the data-quality checks that need the cell values on the other. If
-more runs or finer grids are retained, or if disk becomes the limit, the
-choice should be reviewed. Storing the values as `real` (4 bytes) instead of
-`double precision` was measured at 329 MB against 361 MB for two freshly
-written runs, only about 9% less, and was not adopted.
+**Why the cell values are kept.** The per-cell values are stored so that
+checks 6 and 7 can run on them. This is a trade-off: the checks are bought with
+588 MB of disk (two runs retained), which the Gemeinde values alone would not
+need.
+
+**Revisit if storage becomes an issue.** If more runs or finer grids are
+retained, or if disk becomes the limit, this trade-off needs to be revisited.
+Dropping the cell table is then not free: the checks that depend on it, above
+all check 7 and the cell part of check 6, will have to be redesigned first
+(for example by recomputing cell values on demand from the staging table for a
+sample of partitions, instead of reading them back from storage). Storing the
+values as `real` (4 bytes) instead of `double precision` was measured at 329 MB
+against 361 MB for two freshly written runs, only about 9% less, and was not
+adopted.
 
 ## Consequences
 
 - One implementation of the formula for Germany; changes happen in SQL.
-- Per-run storage of cell values is kept and costs disk; the cost is measured
-  and shown here, not estimated.
+- Per-run storage of cell values is kept to enable checks 6 and 7 and costs
+  disk; the cost is measured and shown here, not estimated. If storage becomes
+  an issue, the checks must be redesigned before the cell table can go.
 - The earlier first layout of the cell table (a wide table with run, lead time
   and grid keys on every row) took 1,259 MB for two runs; the current slim
   layout (run and lead hour only, with a run table) took 361 MB freshly written.
