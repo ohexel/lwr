@@ -9,6 +9,11 @@ from src.dagster_pipeline.assets.germany_employment import (
     normalized_de_indicator_value,
     raw_de_ba_gemeindedaten,
 )
+from src.dagster_pipeline.assets.germany_sectors import (
+    GERMANY_SECTOR_ASSETS,
+    raw_de_ba_regionalreport,
+    raw_de_ba_wz_heft,
+)
 from src.dagster_pipeline.assets.germany_forecast import (
     analytical_de_current_forecast_25h,
     normalized_de_gemeinde_forecast,
@@ -76,9 +81,29 @@ def employment_run_config(reference_date: date) -> dict:
     }
 
 
+GERMANY_SECTORS_JOB = dg.define_asset_job(
+    name="germany_sectors",
+    selection=dg.AssetSelection.assets(*GERMANY_SECTOR_ASSETS),
+    description=(
+        "Download one quarter of the BA sector data (run config: file date): "
+        "the 17 WZ booklets for that quarter and a year earlier, and one "
+        "Regionalreport per Kreis, one request at a time; load them raw and "
+        "refresh the sector values, with the sector checks. Needs "
+        "germany_static first."
+    ),
+)
+
+
+def sector_run_config(file_date: date) -> dict:
+    """Run config that sets the file date of both raw sector assets."""
+    config = {"config": {"file_date": file_date.isoformat()}}
+    return {"ops": {raw_de_ba_wz_heft.op.name: config, raw_de_ba_regionalreport.op.name: config}}
+
+
 GERMANY_JOBS = [
     GERMANY_STATIC_JOB,
     GERMANY_FORECAST_JOB,
     GERMANY_PUBLISH_JOB,
     GERMANY_EMPLOYMENT_JOB,
+    GERMANY_SECTORS_JOB,
 ]

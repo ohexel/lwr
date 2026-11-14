@@ -280,6 +280,181 @@ BA_GEMEINDEDATEN_CONTRACT = BaGemeindedatenContract(
 )
 
 
+# ---------------------------------------------------------------------------
+# Sector data (third theme, ADR 020): BA Regionalreport per Kreis and BA
+# Beschäftigte nach Wirtschaftszweigen per Land. Both quarterly, employees
+# subject to social insurance at place of work.
+# ---------------------------------------------------------------------------
+@dataclass(frozen=True)
+class BaRegionalreportContract:
+    source_code: str
+    title: str
+    product_id: int
+    url_template: str
+    citation: str
+    # Table 2.3, column 1 after whitespace collapse, in delivered order, with
+    # the indicator code each row feeds (None: kept in raw, used by checks).
+    sector_rows: tuple[tuple[str, str | None, str], ...]
+    quarters_per_file: int
+    # Kreis keys are those of the hierarchy (400 for VG250 2022).
+    probe_kreis_key: str
+
+    def url(self, kreis_key: str, file_date: date) -> str:
+        return self.url_template.format(kreis=kreis_key, yyyymm=file_date.strftime("%Y%m"))
+
+    def path(self, kreis_key: str, file_date: date) -> Path:
+        stamp = file_date.strftime("%Y%m")
+        return (
+            GERMANY_RAW_ROOT / "ba_regionalreport" / file_date.isoformat()
+            / f"bst-reg-{kreis_key}-0-{stamp}.xlsx"
+        )
+
+
+@dataclass(frozen=True)
+class BaWzHeftContract:
+    source_code: str
+    title: str
+    url_template: str
+    citation: str
+    sheet: str
+    # File region code ('01'..'16', 'd') -> region key in the hierarchy.
+    regions: dict[str, str]
+    value_columns: int
+
+    def url(self, region_code: str, file_date: date) -> str:
+        return self.url_template.format(ll=region_code, yyyymm=file_date.strftime("%Y%m"))
+
+    def path(self, region_code: str, file_date: date) -> Path:
+        stamp = file_date.strftime("%Y%m")
+        return (
+            GERMANY_RAW_ROOT / "ba_wz_heft" / file_date.isoformat()
+            / f"wz-heft-{region_code}-0-{stamp}.xlsx"
+        )
+
+
+BA_REGIONALREPORT_CONTRACT = BaRegionalreportContract(
+    source_code="ba_regionalreport",
+    title="Regionalreport über Beschäftigte (Quartalszahlen)",
+    product_id=709,
+    url_template=(
+        "https://statistik.arbeitsagentur.de/Statistikdaten/Detail/{yyyymm}/"
+        "iiia6/beschaeftigung-reg-bst-reg/bst-reg-{kreis}-0-{yyyymm}-xlsx.xlsx"
+        "?__blob=publicationFile&v=1"
+    ),
+    citation=(
+        "Statistik der Bundesagentur für Arbeit, Tabellen, Regionalreport über "
+        "Beschäftigte (Quartalszahlen)"
+    ),
+    sector_rows=(
+        ("Insgesamt", "sector_total", "Insgesamt"),
+        ("A", "sector_a", "Land-, Forstwirtschaft und Fischerei"),
+        ("B,D,E", "sector_b_d_e", "Bergbau, Energie- und Wasserversorgung, Entsorgungswirtschaft"),
+        ("C", "sector_c", "Verarbeitendes Gewerbe"),
+        ("dav. 10-15, 18, 21, 31", "sector_c_consumer_goods",
+         "Herstellung von überwiegend häuslich konsumierten Gütern (ohne Güter der Metall-, Elektro- und Chemieindustrie)"),
+        ("24-30, 32, 33", "sector_c_metal_electrical_steel",
+         "Metall- und Elektroindustrie sowie Stahlindustrie"),
+        ("16, 17, 19, 20, 22, 23", "sector_c_intermediate_goods",
+         "Herstellung von Vorleistungsgütern, insbesondere von chemischen Erzeugnissen und Kunststoffwaren (ohne Güter der Metall- und Elektroindustrie)"),
+        ("F", "sector_f", "Baugewerbe"),
+        ("G", "sector_g", "Handel, Instandhaltung, Reparatur von Kfz"),
+        ("H", "sector_h", "Verkehr und Lagerei"),
+        ("I", "sector_i", "Gastgewerbe"),
+        ("J", "sector_j", "Information und Kommunikation"),
+        ("K", "sector_k", "Erbringung von Finanz- und Versicherungsdienstleistungen"),
+        ("L,M", "sector_l_m", "Immobilien, freiberufliche wissenschaftliche und technische Dienstleistungen"),
+        ("N", "sector_n", "sonstige wirtschaftliche Dienstleistungen"),
+        ("dav. N (ohne ANÜ)", "sector_n_excl_temporary_agency",
+         "sonstige wirtschaftliche Dienstleistungen (ohne Arbeitnehmerüberlassung)"),
+        ("782.783", "sector_temporary_agency", "Arbeitnehmerüberlassung"),
+        ("O, U", "sector_o_u", "Öffentliche Verwaltung, Verteidigung, Sozialversicherung, Exterritoriale Organisationen"),
+        ("P", "sector_p", "Erziehung und Unterricht"),
+        ("86", "sector_q86", "Gesundheitswesen"),
+        ("87.88", "sector_q87_88", "Heime und Sozialwesen"),
+        ("R,S,T", "sector_r_s_t", "sonstige Dienstleistungen, Private Haushalte"),
+        ("", "sector_unassigned", "keine Zuordnung möglich"),
+        ("A", None, "Land-, Forstwirtschaft und Fischerei (Sektoren)"),
+        ("B - F", None, "Produzierendes Gewerbe"),
+        ("G - U", None, "Dienstleistungsbereich"),
+    ),
+    quarters_per_file=5,
+    probe_kreis_key="01001",
+)
+
+BA_WZ_HEFT_CONTRACT = BaWzHeftContract(
+    source_code="ba_wz_heft",
+    title="Beschäftigte nach Wirtschaftszweigen (WZ 2008) (Quartalszahlen)",
+    url_template=(
+        "https://statistik.arbeitsagentur.de/Statistikdaten/Detail/{yyyymm}/"
+        "iiia6/beschaeftigung-sozbe-wz-heft/wz-heft-{ll}-0-{yyyymm}-xlsx.xlsx"
+        "?__blob=publicationFile&v=1"
+    ),
+    citation=(
+        "Statistik der Bundesagentur für Arbeit, Tabellen, Beschäftigte nach "
+        "Wirtschaftszweigen (WZ 2008) (Quartalszahlen)"
+    ),
+    sheet="SVB - Tabelle I",
+    regions={**{f"{n:02d}": f"{n:02d}" for n in range(1, 17)}, "d": "DG"},
+    value_columns=11,
+)
+
+# Newest quarter loaded when no file date is configured (both products were
+# online for it on 14 Nov 2026; the next, 30 Jun 2026, is due in January 2027).
+SECTOR_LATEST_KNOWN = date(2026, 3, 31)
+
+@dataclass(frozen=True)
+class SectorSourceDiscrepancy:
+    """A difference in the BA's own published figures, reviewed and documented.
+    The check accepts exactly this gap for this Land and quarter; the map
+    shows the note for the Kreis."""
+
+    quarter: date
+    land_key: str
+    kreis_key: str
+    kreise_below_land: int
+    note_de: str
+
+
+# Observed on 14 Nov 2026 in the files for 31 Mar 2026: Main-Kinzig-Kreis
+# falls from 142,459 to 93,730 employees in one quarter (-34 %), in every
+# section and also by place of residence, while Hessen's total (Regionalreport
+# table 2.1 and WZ booklet) barely changes; the Kreise of Hessen fall 47,649
+# short of the Land. No other Kreis changes by more than 10 %.
+SECTOR_SOURCE_DISCREPANCIES: tuple[SectorSourceDiscrepancy, ...] = (
+    SectorSourceDiscrepancy(
+        quarter=date(2026, 3, 31),
+        land_key="06",
+        kreis_key="06435",
+        kreise_below_land=47_649,
+        note_de=(
+            "Die BA weist für diesen Kreis zum 31. März 2026 rund ein Drittel weniger "
+            "Beschäftigte aus als im Vorquartal, in allen Wirtschaftszweigen, während "
+            "die Zahl für Hessen fast gleich bleibt; die Summe der hessischen Kreise "
+            "liegt 47.649 unter dem Landeswert. Die Kreiswerte dieses Quartals sind "
+            "vermutlich unvollständig."
+        ),
+    ),
+)
+# Germany includes employees who cannot be assigned to a Land (Gemeindedaten:
+# 2,160 on 30 Jun 2025); the gap may not exceed this share of Germany.
+MAX_UNASSIGNED_SHARE = 1e-4
+
+# Manufacturing groups of the Regionalreport as WZ 2008 divisions, so the
+# Land values from the WZ booklets can be grouped the same way.
+SECTOR_GROUP_DIVISIONS: dict[str, tuple[str, ...]] = {
+    "sector_c_consumer_goods": ("10", "11", "12", "13", "14", "15", "18", "21", "31"),
+    "sector_c_metal_electrical_steel": ("24", "25", "26", "27", "28", "29", "30", "32", "33"),
+    "sector_c_intermediate_goods": ("16", "17", "19", "20", "22", "23"),
+}
+# The four industries of the Avenir question, published only per Land.
+LAND_DIVISIONS: dict[str, tuple[str, str]] = {
+    "29": ("wz_29", "Herstellung von Kraftwagen und Kraftwagenteilen"),
+    "28": ("wz_28", "Maschinenbau"),
+    "20": ("wz_20", "Herstellung von chemischen Erzeugnissen"),
+    "241": ("wz_241", "Erzeugung von Roheisen, Stahl und Ferrolegierungen"),
+}
+
+
 ZENSUS_CONTRACT = ZensusContract(
     api_root="https://ergebnisse.zensus2022.de/api/rest/2020",
     table_code="1000A-1003",
