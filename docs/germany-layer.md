@@ -28,12 +28,6 @@ with Berlin and written only to files, plus the Germany aggregation), then
 `germany_forecast_publish`. The Berlin availability sensor does not trigger
 Germany jobs and stays stopped by default.
 
-Databases that ran the first M3 version (wide `de_icon_cell_weather` table)
-need the one-off migration `sql/germany/migrations/001_slim_cell_values.sql`
-once, after the schema has been applied (any Germany job applies it). It copies
-the retained cell values into the slim layout and then drops the old
-Germany-only table; it does nothing on a database without that table.
-
 ## Data flow
 
 | Step | Object | Notes |
