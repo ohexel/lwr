@@ -133,7 +133,18 @@ def _berlin_label(value: datetime) -> str:
 
 
 # Order of the measures in SUMMARY_QUERIES (value, lead hour) pairs.
-SUMMARY_FIELDS = ("t_area", "t_pop", "a_area", "a_pop")
+SUMMARY_FIELDS = (
+    "max_temperature_area_weighted_c",
+    "max_temperature_population_weighted_c",
+    "max_apparent_temperature_shade_area_weighted_c",
+    "max_apparent_temperature_shade_population_weighted_c",
+)
+
+
+def lead_hour_key(value_key: str) -> str:
+    """Key of the lead hour that belongs to a maximum, e.g.
+    max_temperature_area_weighted_c -> max_temperature_area_weighted_lead_hour."""
+    return value_key.removesuffix("_c") + "_lead_hour"
 
 
 def summary_records(rows: list[tuple]) -> dict[str, dict[str, object]]:
@@ -144,18 +155,22 @@ def summary_records(rows: list[tuple]) -> dict[str, dict[str, object]]:
         measures, population, count = rest[:-2], rest[-2], rest[-1]
         if lead_count != EXPECTED_LEAD_COUNT:
             raise ValueError(f"{key}: {lead_count} lead hours, expected {EXPECTED_LEAD_COUNT}")
-        record: dict[str, object] = {"n": name, "p": population, "g": count}
+        record: dict[str, object] = {
+            "name": name,
+            "population_total": population,
+            "gemeinde_count": count,
+        }
         if parent is not None:
-            record["l"] = parent
+            record["land_key"] = parent
         for field, value, hour in zip(SUMMARY_FIELDS, measures[0::2], measures[1::2]):
             if value is None:
-                if field.endswith("_pop"):
+                if "population_weighted" in field:
                     record[field] = None
-                    record[field + "_h"] = None
+                    record[lead_hour_key(field)] = None
                     continue
                 raise ValueError(f"{key}: missing {field}")
             record[field] = _round(value)
-            record[field + "_h"] = int(hour)
+            record[lead_hour_key(field)] = int(hour)
         records[key] = record
     return records
 
@@ -186,22 +201,22 @@ def collect_values(connection: psycopg.Connection) -> dict[str, object]:
         if t_max is None or a_max is None:
             raise ValueError(f"{ars}: missing forecast maximum")
         gemeinden[ars] = {
-            "n": name,
-            "k": kreis,
-            "l": land,
-            "t": _round(t_max),
-            "t_h": hour_of[t_label],
-            "a": _round(a_max),
-            "a_h": hour_of[a_label],
-            "p": population,
-            "s": status,
-            "b": bez,
+            "name": name,
+            "kreis_key": kreis,
+            "land_key": land,
+            "max_temperature_c": _round(t_max),
+            "max_temperature_lead_hour": hour_of[t_label],
+            "max_apparent_temperature_shade_c": _round(a_max),
+            "max_apparent_temperature_shade_lead_hour": hour_of[a_label],
+            "population_total": population,
+            "population_status": status,
+            "gemeinde_type": bez,
         }
 
     kreise = summary_records(connection.execute(SUMMARY_QUERIES["krs"]).fetchall())
     for key, kreis_type in connection.execute(KREIS_TYPE_QUERY, (geography_version,)):
         if key in kreise:
-            kreise[key]["b"] = kreis_type
+            kreise[key]["kreis_type"] = kreis_type
     laender = summary_records(connection.execute(SUMMARY_QUERIES["lan"]).fetchall())
 
     by_level = {"gem": gemeinden, "krs": kreise, "lan": laender}
@@ -214,9 +229,9 @@ def collect_values(connection: psycopg.Connection) -> dict[str, object]:
     bund_a_area, bund_a_area_h, bund_a_pop, bund_a_pop_h = connection.execute(
         BUND_QUERY
     ).fetchone()
-    all_apparent = [r["a"] for r in gemeinden.values()]
+    all_apparent = [r["max_apparent_temperature_shade_c"] for r in gemeinden.values()]
     return {
-        "schema": 1,
+        "schema": 2,
         "geography_version": geography_version,
         "tiles": f"{geography_version}.pmtiles",
         "run_time_utc": run_time.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%MZ"),
@@ -227,11 +242,11 @@ def collect_values(connection: psycopg.Connection) -> dict[str, object]:
             math.floor(min(all_apparent)), math.ceil(max(all_apparent))
         ],
         "bund": {
-            "a_area": _round(bund_a_area),
-            "a_area_h": int(bund_a_area_h),
-            "a_pop": _round(bund_a_pop),
-            "a_pop_h": int(bund_a_pop_h),
-            "p": leads[0][7],
+            "max_apparent_temperature_shade_area_weighted_c": _round(bund_a_area),
+            "max_apparent_temperature_shade_area_weighted_lead_hour": int(bund_a_area_h),
+            "max_apparent_temperature_shade_population_weighted_c": _round(bund_a_pop),
+            "max_apparent_temperature_shade_population_weighted_lead_hour": int(bund_a_pop_h),
+            "population_total": leads[0][7],
         },
         "lan": laender,
         "krs": kreise,
@@ -257,7 +272,7 @@ def write_geometry_layers(
         count = 0
         with path.open("w", encoding="utf-8") as handle:
             for key, geometry in connection.execute(query, (geography_version,)):
-                feature = {"type": "Feature", "properties": {"k": key},
+                feature = {"type": "Feature", "properties": {"key": key},
                            "geometry": json.loads(geometry)}
                 handle.write(json.dumps(feature, separators=(",", ":")) + "\n")
                 count += 1

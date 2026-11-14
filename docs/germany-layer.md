@@ -103,8 +103,8 @@ uv run --env-file .env python -m src.export_germany_dashboard --serve
 
 | File in `web/germany-dashboard/data/` | Content | Rebuilt |
 | --- | --- | --- |
-| `vg250-2022-12-31.pmtiles` | Land, Kreis and Gemeinde outlines, zoom 4-10, property `k` = regional key only | once per geography version, or with `--rebuild-tiles` (needs `tippecanoe`) |
-| `values.json` | current complete run: per region the 24-hour maximum of shade apparent temperature and air temperature with their hour (read from the `de_current_*_summary` views), residents, names | every export |
+| `vg250-2022-12-31.pmtiles` | Land, Kreis and Gemeinde outlines, zoom 4-10, property `key` = regional key only | once per geography version, or with `--rebuild-tiles` (needs `tippecanoe`) |
+| `values.json` | schema 2, current complete run: per region the 24-hour maximum of shade apparent temperature and air temperature with its lead hour (an index into `valid_times_berlin`; read from the `de_current_*_summary` views), residents, names. Keys are descriptive, e.g. `max_apparent_temperature_shade_population_weighted_c` | every export |
 
 Generated files are git-ignored. The page joins values to outlines with
 MapLibre feature-state (`promoteId: "k"`), so tiles are never rebuilt per run.

@@ -170,6 +170,8 @@ def test_map_values_export_is_complete_for_the_current_run() -> None:
     assert (len(values["lan"]), len(values["krs"]), len(values["gem"])) == (
         LAENDER, KREISE, GEMEINDEN,
     )
-    assert values["bund"]["p"] == 82_711_282
+    assert values["bund"]["population_total"] == 82_711_282
     low, high = values["apparent_range_c"]
-    assert all(low <= r["a"] <= high for r in values["gem"].values())
+    assert all(
+        low <= r["max_apparent_temperature_shade_c"] <= high for r in values["gem"].values()
+    )

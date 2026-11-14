@@ -15,6 +15,8 @@
   const GERMANY_BOUNDS = [[5.6, 47.1], [15.3, 55.2]];
 
   const state = { level: "krs", weighting: "area", values: null, hovered: null, pinned: null };
+  const APPARENT = "apparent_temperature_shade";
+  const AIR = "temperature";
   const $ = (id) => document.getElementById(id);
 
   // ---------------------------------------------------------------- format
@@ -36,10 +38,19 @@
   const degrees = (v) => (v === null || v === undefined ? "–" : `${v.toFixed(1)} °C`);
 
   // ---------------------------------------------------------------- values
+  // Keys of values.json: max_<measure>_c for a Gemeinde, and
+  // max_<measure>_<area|population>_weighted_c for a Kreis or Land. The lead
+  // hour (index into valid_times_berlin) is the same key ending in _lead_hour.
+  function valueKey(level, measure, weighting = state.weighting) {
+    return level === "gem" ? `max_${measure}_c` : `max_${measure}_${weighting}_weighted_c`;
+  }
+  const hourKey = (key) => key.replace(/_c$/, "_lead_hour");
+  function valueAndTime(level, record, measure, weighting) {
+    const key = valueKey(level, measure, weighting);
+    return `${degrees(record[key])} · ${when(record[hourKey(key)])}`;
+  }
   function valueOf(level, record) {
-    if (!record) return null;
-    if (level === "gem") return record.a;
-    return record[state.weighting === "pop" ? "a_pop" : "a_area"];
+    return record ? record[valueKey(level, APPARENT)] : null;
   }
 
   // Colour domain: this run's Gemeinde range, widened to whole 5 °C steps.
@@ -77,42 +88,40 @@
   function parentNames(level, record) {
     const v = state.values;
     if (level === "gem") {
-      const kreis = v.krs[record.k];
-      const land = v.lan[record.l];
-      return [record.b, kreis && kreis.n, land && land.n].filter(Boolean).join(" · ");
+      const kreis = v.krs[record.kreis_key];
+      const land = v.lan[record.land_key];
+      return [record.gemeinde_type, kreis && kreis.name, land && land.name].filter(Boolean).join(" · ");
     }
     if (level === "krs") {
-      const land = v.lan[record.l];
-      return [record.b, land && land.n].filter(Boolean).join(" · ");
+      const land = v.lan[record.land_key];
+      return [record.kreis_type, land && land.name].filter(Boolean).join(" · ");
     }
     return "Land";
   }
 
   function residents(record) {
-    if (record.p === null || record.p === undefined) return "no census record";
+    if (record.population_total === null || record.population_total === undefined) return "no census record";
     // Defensive: not present in the current extract (see normalized_schema.sql).
-    if (record.s === "census_zero_or_set_to_zero") return "0 (exactly zero or set to zero)";
-    return numberFmt.format(record.p);
+    if (record.population_status === "census_zero_or_set_to_zero") return "0 (exactly zero or set to zero)";
+    return numberFmt.format(record.population_total);
   }
 
   function rows(level, record) {
     if (level === "gem") {
       return [
-        ["Max. apparent", `${degrees(record.a)} · ${when(record.a_h)}`],
-        ["Max. air temp.", `${degrees(record.t)} · ${when(record.t_h)}`],
+        ["Max. apparent", valueAndTime(level, record, APPARENT)],
+        ["Max. air temp.", valueAndTime(level, record, AIR)],
         ["Residents", residents(record)],
       ];
     }
-    const pop = state.weighting === "pop";
-    const a = pop ? "a_pop" : "a_area";
-    const t = pop ? "t_pop" : "t_area";
-    const other = pop ? "a_area" : "a_pop";
+    const chosen = state.weighting;
+    const other = chosen === "population" ? "area" : "population";
     return [
-      [`Max. apparent (${pop ? "population" : "area"})`, `${degrees(record[a])} · ${when(record[a + "_h"])}`],
-      [`Max. air temp. (${pop ? "population" : "area"})`, `${degrees(record[t])} · ${when(record[t + "_h"])}`],
-      [`Max. apparent (${pop ? "area" : "population"})`, `${degrees(record[other])} · ${when(record[other + "_h"])}`],
+      [`Max. apparent (${chosen})`, valueAndTime(level, record, APPARENT, chosen)],
+      [`Max. air temp. (${chosen})`, valueAndTime(level, record, AIR, chosen)],
+      [`Max. apparent (${other})`, valueAndTime(level, record, APPARENT, other)],
       ["Residents", residents(record)],
-      ["Gemeinden", numberFmt.format(record.g)],
+      ["Gemeinden", numberFmt.format(record.gemeinde_count)],
     ];
   }
 
@@ -128,7 +137,7 @@
       return;
     }
     const h2 = document.createElement("h2");
-    h2.textContent = record.n;
+    h2.textContent = record.name;
     const context = document.createElement("p");
     context.className = "context";
     context.textContent = `${LEVEL_LABEL[level]} ${key} · ${parentNames(level, record)}`;
@@ -153,10 +162,10 @@
     if (!record) { tip.hidden = true; return; }
     tip.replaceChildren();
     const name = document.createElement("strong");
-    name.textContent = record.n;
+    name.textContent = record.name;
     const value = document.createElement("span");
     const v = valueOf(level, record);
-    const hour = level === "gem" ? record.a_h : record[(state.weighting === "pop" ? "a_pop" : "a_area") + "_h"];
+    const hour = record[hourKey(valueKey(level, APPARENT))];
     value.textContent = `${degrees(v)} · ${when(hour)}`;
     tip.append(name, value);
     tip.style.left = `${point.x + 14}px`;
@@ -191,10 +200,14 @@
     small.textContent = ` · ${v.run_time_utc.replace("T", " ").replace("Z", " UTC")} · valid until ${dayFmt.format(last)}, ${timeFmt.format(last)}`;
     el.append(small);
     const b = v.bund;
+    const part = (weighting, label) => {
+      const key = valueKey("bund", APPARENT, weighting);
+      return `${degrees(b[key])} ${label} (${when(b[hourKey(key)])})`;
+    };
     $("bund").textContent =
-      `Germany as a whole: max. apparent ${degrees(b.a_area)} area-weighted (${when(b.a_area_h)}), ` +
-      `${degrees(b.a_pop)} population-weighted (${when(b.a_pop_h)}); ` +
-      `${numberFmt.format(b.p)} residents with a census record.`;
+      `Germany as a whole: max. apparent ${part("area", "area-weighted")}, ` +
+      `${part("population", "population-weighted")}; ` +
+      `${numberFmt.format(b.population_total)} residents with a census record.`;
   }
 
   // ---------------------------------------------------------------- map
@@ -251,7 +264,7 @@
           [SOURCE]: {
             type: "vector",
             url: `pmtiles://${tilesUrl}`,
-            promoteId: "k",
+            promoteId: "key",
             attribution:
               '<a href="https://www.bkg.bund.de">© GeoBasis-DE / BKG 2022 (Daten verändert)</a> · ' +
               "Zensus 2022 · DWD ICON-D2-RUC",
@@ -328,7 +341,7 @@
       const response = await fetch("data/values.json", { cache: "no-cache" });
       if (!response.ok) throw new Error(`values.json: HTTP ${response.status}`);
       state.values = await response.json();
-      if (state.values.schema !== 1) throw new Error("values.json: unexpected schema");
+      if (state.values.schema !== 2) throw new Error("values.json: unexpected schema");
     } catch (error) {
       const el = $("run-time");
       el.className = "run error";
