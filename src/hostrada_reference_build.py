@@ -1,7 +1,5 @@
 """Run or resume twelve independently committed HOSTRADA reference months."""
 
-from __future__ import annotations
-
 import argparse
 import logging
 import os

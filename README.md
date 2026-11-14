@@ -1,5 +1,10 @@
 # 24h temperature forecast for Berlin neighborhoods
 
+> **Two parts in one repository.** The original Berlin capstone (tag
+> `v1.0-capstone-submitted`) is described below. Since v2.0 the repository also
+> holds a **Germany layer** that extends the same pipeline to Bund, Länder,
+> Kreise and Gemeinden; see [Germany layer](#germany-layer) at the end.
+
 A reproducible geospatial data pipeline that combines current DWD temperature
 forecasts, 31 years of historical temperature, and official population data for
 Berlin's 542 planning areas.
@@ -305,3 +310,116 @@ Geography-version identifiers, population reference dates, source provenance,
 and quality diagnostics remain available below the serving layer. Analysts
 receive measurements and essential time/geographic context rather than
 predefined thresholds, classifications, or exposure estimates.
+
+## Germany layer
+
+The Germany layer extends the pipeline from Berlin's 542 planning areas to
+every administrative level of Germany: Bund → 16 Länder → 400 Kreise → 10,990
+Gemeinden. For each Gemeinde it combines the current 24-hour DWD ICON-D2-RUC
+forecast (air temperature and shade apparent temperature, area-weighted from
+the model grid) with Zensus 2022 total population, rolls the values up to
+Kreis, Land and Bund with both an area and a population weighting, checks the
+results against the sources, and shows them on a static MapLibre map. Berlin
+tables, views, the sensor and the Berlin dashboard are unchanged; Germany
+objects carry the prefix `de_`.
+
+![Germany map, Kreise: highest shade apparent temperature in the next 24 hours, area-weighted, on a fixed scale from -20 to +30 °C. Forecast run 2026-11-14 09:00 UTC.](docs/images/germany-map.png)
+
+*Highest shade apparent temperature over the next 24 hours by Kreis,
+area-weighted (forecast run 2026-11-14 09:00 UTC). The page is in German; a
+switch shows the lowest values instead (Höchstwerte / Tiefstwerte). The colour
+scale is fixed from -20 to +30 °C, so a colour means the same temperature on
+every day.*
+
+### Run it
+
+```bash
+# once: VG250 and Zensus raw loads, hierarchy, population, grid subset, bridge
+uv run --env-file .env python -m src.germany.run_static
+
+# per forecast run (UTC label; DWD keeps runs for about 24 hours)
+uv run --env-file .env python -m src.germany.run_forecast \
+  --run-time "$(date -u -d '3 hours ago' +%Y%m%dT%H00)"
+
+# export the map and open a local preview (http://127.0.0.1:8766/)
+uv run --env-file .env python -m src.export_germany_dashboard --serve
+
+# acceptance tests on the installed data (read-only)
+uv run --env-file .env python -m pytest -m acceptance tests/test_germany_acceptance.py
+```
+
+`run_static` needs a free Zensus API token (`ZENSUS2022_TOKEN` in `.env`) only
+when the Zensus files are not yet under `data/raw/germany/`. Building the
+boundary tiles needs `tippecanoe` once. Details and measurements:
+[docs/germany-layer.md](docs/germany-layer.md) and
+[docs/germany-layer-facts.md](docs/germany-layer-facts.md).
+
+### Example query
+
+The five Kreise with the highest 24-hour maximum of shade apparent temperature,
+weighted by population:
+
+```sql
+SELECT kreis_name, land_name,
+       max_apparent_temperature_shade_population_weighted_c,
+       max_apparent_temperature_shade_population_weighted_at_berlin
+FROM analytical.de_current_kreis_summary
+ORDER BY 3 DESC
+LIMIT 5;
+```
+
+### Checks against the sources
+
+| # | Check | What it tests |
+| --- | --- | --- |
+| 1 | `de_key_coverage` | every VG250 Gemeinde has a Zensus record and the reverse; exceptions are listed |
+| 2 | `de_hierarchy_integrity` | what foreign keys cannot guarantee: no empty parents, consistent Land, key parts agree with VG250, areas add up |
+| 3 | `de_source_totals` | sums of Gemeinde population equal the published Kreis and Land totals; the Germany total differs by the documented 8,258 |
+| 4 | `de_bridge_coverage` | each Gemeinde is covered by grid cells (sum of intersection areas / area ≥ 0.999) |
+| 5 | `de_forecast_completeness` | all Gemeinden × 25 lead times exist before the current views switch to a new run |
+| 6 | `de_forecast_plausibility` | temperatures within physical bounds, no NULLs |
+| 7 | `de_berlin_cross_layer_consistency` | Berlin as one Gemeinde agrees with the roll-up of its 542 planning areas (tolerance 0.01 °C, warning) |
+
+Two more checks verify that the raw VG250 and Zensus files match their pinned
+checksums and counts.
+
+### Adding a further theme
+
+The hierarchy does not change when a theme is added. A new theme is one table
+keyed by the geography version and a regional key (Gemeinde, Kreis or Land),
+plus the same roll-up pattern, its own source contract (URL, reference date,
+licence, checksum) and checks against the source's published totals. As a
+candidate for a next theme, the Bundesagentur für Arbeit publishes employees
+and establishments per Gemeinde; in its 30 June 2025 file, 10,748 of 10,752
+Gemeinde keys match the VG250 keys used here (measured 14 Nov 2026).
+
+### Limitations
+
+- Forecast only. There is no Germany-wide historical reference; HOSTRADA history
+  stays Berlin-only.
+- Population is Zensus 2022 (reference date 15 May 2022, Gebietsstand 15 May
+  2022); VG250 boundaries have the status of 31 Dec 2022.
+- VG250 is a generalised 1:250,000 geometry.
+- Shade apparent temperature does not include solar radiation (as in Berlin).
+- The values are measurements: no thresholds, classes or exposure scores.
+- A portfolio project run on a local machine, not an operated service.
+
+### Licences and attribution
+
+Boundaries: © GeoBasis-DE / BKG 2022 (Daten verändert), dl-de/by-2-0.
+Population: Zensus 2022, © Statistische Ämter des Bundes und der Länder,
+Deutschland, 2026, dl-de/by-2-0. Forecast: Deutscher Wetterdienst (DWD),
+ICON-D2-RUC, CC BY 4.0. Aggregation by this project; not an official
+publication. Sources, checksums and licences are listed in
+[docs/data-sources.md](docs/data-sources.md).
+
+### Decisions
+
+[ADR 014](docs/adr/014-equal-area-projection-for-germany.md) (equal-area
+projection),
+[ADR 015](docs/adr/015-rollup-weighting.md) (roll-up weighting),
+[ADR 016](docs/adr/016-map-pmtiles-and-json-values.md) (map: PMTiles and JSON),
+[ADR 017](docs/adr/017-zensus-2022-population-and-source-checks.md) (Zensus
+and source checks),
+[ADR 018](docs/adr/018-sql-aggregation-and-cell-storage.md) (SQL aggregation
+and cell storage).

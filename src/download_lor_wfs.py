@@ -19,8 +19,6 @@ The script first discovers the WFS capabilities and advertised FeatureTypes.
 It does not hard-code the actual WFS layer/type names.
 """
 
-from __future__ import annotations
-
 import argparse
 import hashlib
 import json

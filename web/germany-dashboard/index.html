@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deutschland: Höchst- und Tiefsttemperaturen über die nächsten 24 Stunden</title>
+  <link rel="icon" href="data:,">
+  <meta name="description" content="Höchste und niedrigste gefühlte Temperatur im Schatten in den nächsten 24 Stunden für jedes Land, jeden Kreis und jede Gemeinde Deutschlands, aus der DWD-Vorhersage ICON-D2-RUC.">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css"
+        integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
+  <link rel="stylesheet" href="styles.css?v=3">
+  <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"
+          integrity="sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj" crossorigin="anonymous" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/pmtiles@3.2.1/dist/pmtiles.js"
+          integrity="sha384-QfbOCebHNw8pQiPAOd2IFee2v2A5VYZxBk0+JGZ5H+3mfzVIp6zsQNkTsfGJot93" crossorigin="anonymous" defer></script>
+  <script src="app.js?v=4" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <p class="eyebrow">DWD ICON-D2-RUC · Zensus 2022 · VG250</p>
+    <h1>Deutschland: Höchst- und Tiefsttemperaturen über die nächsten 24 Stunden</h1>
+    <p class="run" id="run-time" aria-live="polite">Vorhersagelauf wird geladen…</p>
+  </header>
+
+  <main class="layout">
+    <section class="controls" aria-label="Kartensteuerung">
+      <fieldset id="extreme-field">
+        <legend>Anzeige</legend>
+        <label><input type="radio" name="extreme" value="max" checked> Höchstwerte</label>
+        <label><input type="radio" name="extreme" value="min"> Tiefstwerte</label>
+        <p class="field-note" id="extreme-note" hidden>Tiefstwerte sind in diesen Daten noch nicht enthalten.</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Ebene</legend>
+        <label><input type="radio" name="level" value="lan"> Länder</label>
+        <label><input type="radio" name="level" value="krs" checked> Kreise</label>
+        <label><input type="radio" name="level" value="gem"> Gemeinden</label>
+      </fieldset>
+
+      <fieldset id="weighting-field">
+        <legend>Werte für Kreise und Länder</legend>
+        <label><input type="radio" name="weighting" value="area" checked> Flächengewichtet</label>
+        <label><input type="radio" name="weighting" value="population"> Bevölkerungsgewichtet</label>
+      </fieldset>
+
+      <div class="legend" aria-labelledby="legend-title">
+        <p id="legend-title" class="legend-title"></p>
+        <div class="legend-bar" id="legend-bar"></div>
+        <div class="legend-ticks" id="legend-ticks"></div>
+        <p class="legend-nodata"><span class="swatch nodata"></span> Kein Wert</p>
+        <p class="legend-nodata">Feste Skala von −20 °C bis +30 °C; dieselbe Farbe bedeutet an jedem Tag dieselbe Temperatur.</p>
+      </div>
+
+      <section class="details" id="details" aria-live="polite">
+        <p class="hint">Region mit der Maus überfahren oder anklicken.</p>
+      </section>
+
+      <p class="bund" id="bund"></p>
+    </section>
+
+    <div class="map-wrap">
+      <div id="map" role="region" aria-label="Karte von Deutschland, eingefärbt nach der gefühlten Temperatur im Schatten"></div>
+      <div id="tooltip" class="tooltip" hidden></div>
+    </div>
+  </main>
+
+  <footer class="notes">
+    <p>
+      <strong>Gefühlte Temperatur im Schatten</strong> verbindet Lufttemperatur,
+      Luftfeuchte und Windgeschwindigkeit (dieselbe Formel wie im Berliner Dashboard).
+      Sonnenstrahlung ist nicht enthalten; es ist daher kein vollständiges Maß für
+      Hitzebelastung. Gemeindewerte sind flächengewichtete Mittel von ICON-D2-Gitterzellen
+      (ca. 2,2 km). Kreis- und Landeswerte sind Mittel ihrer Gemeinden, gewichtet nach
+      Fläche oder nach Einwohnern laut Zensus 2022.
+    </p>
+    <p>
+      <strong>Einwohner:</strong> Bevölkerung insgesamt laut Zensus 2022 am 15. Mai 2022.
+      Die meisten gemeindefreien Gebiete haben keinen Zensus-Datensatz; für sie wird
+      eine Vorhersage, aber keine Einwohnerzahl angezeigt.
+    </p>
+    <p class="attribution">
+      Vorhersage: Deutscher Wetterdienst (DWD), ICON-D2-RUC, CC BY 4.0 ·
+      Grenzen: <a href="https://www.bkg.bund.de">© GeoBasis-DE / BKG 2022 (Daten verändert)</a>,
+      <a href="https://www.govdata.de/dl-de/by-2-0">dl-de/by-2-0</a> ·
+      Bevölkerung: Zensus 2022, © Statistische Ämter des Bundes und der Länder, Deutschland, 2026,
+      <a href="https://www.govdata.de/dl-de/by-2-0">dl-de/by-2-0</a> ·
+      Aggregation durch dieses Projekt; keine amtliche Veröffentlichung.
+    </p>
+  </footer>
+</body>
+</html>

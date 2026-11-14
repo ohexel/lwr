@@ -1,7 +1,5 @@
 """Bounded, restart-safe downloads of one complete HOSTRADA source month."""
 
-from __future__ import annotations
-
 import logging
 from contextlib import nullcontext
 from dataclasses import dataclass

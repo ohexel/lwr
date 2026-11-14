@@ -32,3 +32,17 @@ markers = [
     "historical_rebuild: exercises the optional HOSTRADA reconstruction workflow",
     "contract: protects an important pipeline, data, or serving contract",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff==0.17.3",
+]
+
+[tool.ruff.lint]
+# Only this rule is enforced for now; the default rule set reports existing
+# findings in code that predates ruff in this repository.
+select = ["TID251"]
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"__future__.annotations".msg = """Do not use `from __future__ import annotations`: Dagster reads \
+annotations at runtime (see docs/runbook.md), and Python 3.11+ supports the syntax natively."""

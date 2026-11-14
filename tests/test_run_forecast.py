@@ -1,7 +1,5 @@
 """Protect the public manual-forecast interface and source availability gate."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass
 from pathlib import Path
 

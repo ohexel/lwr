@@ -1,7 +1,5 @@
 """Classify existing tests without moving files or weakening their assertions."""
 
-from __future__ import annotations
-
 from pathlib import Path
 import re
 

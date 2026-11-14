@@ -1,0 +1,173 @@
+# Germany layer: operation, checks and measurements
+
+Extends the Berlin pipeline to Bund → Länder → Kreise → Gemeinden with the
+current 24-hour DWD ICON-D2-RUC forecast and Zensus 2022 total population.
+Berlin assets, views, sensor and outputs are unchanged; Germany objects carry
+the `de_` prefix. Sources and licences: [data-sources.md](data-sources.md).
+Measured numbers: [germany-layer-facts.md](germany-layer-facts.md).
+
+## Run it
+
+```bash
+# once: sources, hierarchy, population, grid subset and bridge
+uv run --env-file .env python -m src.germany.run_static
+
+# per forecast run (UTC label; DWD keeps runs for about 24 hours)
+uv run --env-file .env python -m src.germany.run_forecast \
+  --run-time "$(date -u -d '3 hours ago' +%Y%m%dT%H00)"
+```
+
+`run_static` runs the Dagster job `germany_static`. It needs `ZENSUS2022_TOKEN`
+only when the Zensus files are not yet present locally. It is safe to repeat:
+a geography version that already exists from the same VG250 file is left
+unchanged (a different file needs a new `geography_version`); population and
+the bridge are rebuilt. The forecast runner materializes the Dagster job
+`germany_forecast` once per lead time (the four raw DWD GRIB fields, shared
+with Berlin and written only to files, plus the Germany aggregation), then
+`germany_forecast_publish`. The Berlin availability sensor does not trigger
+Germany jobs and stays stopped by default.
+
+## Data flow
+
+| Step | Object | Notes |
+| --- | --- | --- |
+| Grid subset | `normalized.de_icon_cell` | ICON cells intersecting a Gemeinde: the Berlin pipeline's cell polygons (EPSG:25833, read-only) transformed to EPSG:3035 |
+| Bridge | `normalized.de_icon_cell_gemeinde_bridge` | intersection area and `fraction_of_gemeinde`, versioned by geography and grid |
+| Cell forecast | `normalized.de_forecast_run`, `normalized.de_icon_cell_value` | one row per run (geography version, grid) and one row per run, lead hour and cell: temperature and shade apparent temperature, computed with Berlin's units and `normalized.calculate_apparent_temperature_shade_c`; lead-time label and valid time are derived from the lead hour |
+| Gemeinde forecast | `normalized.de_gemeinde_forecast` | area-weighted from cells, like Berlin's PLR values |
+| Serving | `analytical.de_current_{gemeinde,kreis,land,bund}_forecast_25h`, `analytical.de_current_{gemeinde,kreis,land,bund}_summary` | newest run with every Gemeinde × 25 lead times; the summaries hold the 24-hour maximum (`max_`) and minimum (`min_`) of each measure with its time (one rule for all four levels: highest or lowest value, earliest time on a tie; the `min_` columns are appended at the end of each view so `CREATE OR REPLACE VIEW` works on an installed database) |
+
+Kreis, Land and Bund values are served twice: weighted by Gemeinde area (equal
+to direct area weighting, because Gemeinden partition their Kreis in VG250)
+and weighted by Zensus 2022 total population. Gemeinden without a census
+record (population NULL) contribute no population weight; their population is
+never treated as zero. The serving views contain measurements only (D5).
+
+## Retention
+
+Database rows of the newest complete run and the complete run before it are
+kept, plus a newer run while it is still loading
+(`normalized.prune_de_forecast`, applied on publish). GRIB files are never
+deleted by the Germany layer; they share Berlin's directory layout and its
+existing file retention rule.
+
+## Checks and thresholds
+
+| # | Check | Rule | Severity |
+| --- | --- | --- | --- |
+| 1 | `de_key_coverage` | every Land/Kreis/Gemeinde key exists in VG250 and Zensus; unincorporated areas without census record listed, non-blocking | error |
+| 2 | `de_hierarchy_integrity` | what foreign keys cannot guarantee: no Kreis without Gemeinden, no Land without Kreise, a Gemeinde's Land equals its Kreis's Land, VG250 key parts agree, Σ Gemeinde area = Kreis area within 1e-9 (relative); foreign keys cover that parents exist | error |
+| 3 | `de_source_totals` | Σ normalized Gemeinde population = published Kreis and Land totals, exactly; published Germany total − Σ Länder = the documented 8,258, exactly | error |
+| 4 | `de_bridge_coverage` | Σ intersection / Gemeinde area within [0.999, 1] for every Gemeinde | error |
+| 5 | `de_forecast_completeness` | served run has every Gemeinde × 25 lead times | error |
+| 6 | `de_forecast_plausibility` | current run, Gemeinden and cells: no NULLs; temperature −50…+50 °C; apparent temperature −70…+60 °C | error |
+| 7 | `de_berlin_cross_layer_consistency` | Berlin's Gemeinde value vs. the area-weighted roll-up of its 542 PLRs, both from the same cell values; max difference ≤ 0.01 °C | warning |
+
+**Check 3.** Kreis and Land totals in Zensus 2022 total population are
+published without Cell Key perturbation and match the Gemeinde sums exactly,
+so the tolerance there is 0. The published Germany total (82,719,540) exceeds
+the sum of the Länder (82,711,282) by 8,258. Destatis' *Qualitätsbericht
+Zensus 2022* (published 20/11/2024; section 1.1 "Grundgesamtheit", section 7.2
+"Statistikinterne Kohärenz") counts Bundeswehr, police and foreign-service
+staff working abroad, with their families living there, as part of the
+population and states that register-based results contain them at Bund
+level. The report does not give their number, so the 8,258 is consistent with
+that definition but not confirmed against a published figure. Because the
+extracts are pinned by SHA-256, the check expects exactly this difference:
+any other value means the source changed and fails the check. Population
+weights in the roll-ups use Gemeinde values, so the Bund population in
+`de_current_bund_forecast_25h` is 82,711,282, not the published total.
+
+**Check 7.** The PLR roll-up is recomputed from the Germany cell values through
+Berlin's existing bridge (`normalized.icon_plr_area_bridge`, read-only), and
+the 542 PLR values are weighted by PLR area. Both sides therefore use identical
+cell values; the only difference is the outline (generalised VG250 1:250 000
+vs. the LOR planning areas). Over the first three runs (75 lead times) the
+largest difference was 0.0014 °C for either measure; the tolerance 0.01 °C
+leaves headroom for days with steeper gradients along the outline. If Berlin's
+own stored output (`analytical.plr_weather`) exists for the same run time, it
+is compared as well; otherwise the check reports it as not available.
+
+## Map
+
+A separate static page in `web/germany-dashboard/` (the Berlin dashboard is
+not touched). MapLibre GL JS 4.7.1 and PMTiles 3.2.1 are loaded from
+jsDelivr with pinned versions and Subresource Integrity hashes; there is no
+basemap and no API key.
+
+```bash
+# export (and build the boundary tiles on first use), then preview locally
+uv run --env-file .env python -m src.export_germany_dashboard --serve
+# -> http://127.0.0.1:8766/
+```
+
+| File in `web/germany-dashboard/data/` | Content | Rebuilt |
+| --- | --- | --- |
+| `vg250-2022-12-31.pmtiles` | Land, Kreis and Gemeinde outlines, zoom 4-10, property `key` = regional key only | once per geography version, or with `--rebuild-tiles` (needs `tippecanoe`) |
+| `values.json` | schema 2, current complete run: per region the 24-hour maximum and minimum of shade apparent temperature and air temperature with its lead hour (an index into `valid_times_berlin`; read from the `de_current_*_summary` views), residents, names. Keys are descriptive, e.g. `max_apparent_temperature_shade_population_weighted_c`, `min_temperature_c`. The `min_` keys were added without a schema change (still 2): the page enables Tiefstwerte only when they are present | every export |
+
+Generated files are git-ignored. The page joins values to outlines with
+MapLibre feature-state (`promoteId: "key"`), so tiles are never rebuilt per run.
+
+**What it shows.** All user-facing text is German; the page title is
+"Deutschland: Höchst- und Tiefsttemperaturen über die nächsten 24 Stunden".
+A choropleth of the highest or lowest shade apparent temperature over the
+next 24 hours at Land, Kreis or Gemeinde level (radio buttons, keyboard
+operable). A switch chooses Höchstwerte or Tiefstwerte; the page reads
+`min_<measure>_c` / `min_<measure>_<area|population>_weighted_c` (and the
+matching `_lead_hour`) from `values.json`, the same naming as the `max_` keys.
+A `values.json` from an older export has no `min_` keys; the page then
+disables the Tiefstwerte option and says so.
+Kreis and Land values switch between area- and
+population-weighted roll-ups. Hover or click shows name, parents, the
+extreme with its time (Europe/Berlin), the extreme air temperature and residents; a click
+pins the region (the way to read a value on a touch screen). The forecast run
+time is in the header. The local preview is `src/germany/preview_server.py`
+(Range requests, which PMTiles needs).
+
+**Colour scale.** Fixed and continuous, cool to warm: dark blue at -20 °C,
+blue at -10 °C, light blue at 0 °C, pale blue at 8 °C, pale yellow at 16 °C,
+orange at 22 °C, red at 30 °C (ColorBrewer RdYlBu, reversed, neutral moved to
+16 °C; values outside the range take the end colours). It is the same on every
+day and for all three levels, so a cold day (0-10 °C) is blue, never orange or
+red, and a colour always means the same temperature. No warning classes are
+drawn (D5).
+
+**Upload.** Copy the whole `web/germany-dashboard/` folder (including
+`data/`) to the web host. The host must answer HTTP Range requests for the
+`.pmtiles` file; www.ohexel.com and ohexel.com both do (tested 2026-11-09:
+`206 Partial Content` for first, middle and suffix ranges, no content
+encoding). The page loads tiles from its own origin; the host sends no CORS
+headers, so the tiles cannot be loaded from a page on another domain. For a
+new run, re-export and upload `data/values.json` only.
+
+## Aggregation
+
+The cell-to-Gemeinde aggregation runs in SQL
+(`normalized.refresh_de_forecast_partition`). A numpy version was measured
+against it during development and removed afterwards; the measured comparison
+is in [germany-layer-facts.md](germany-layer-facts.md#sql-vs-python-aggregation)
+and [ADR 018](adr/018-sql-aggregation-and-cell-storage.md).
+
+## Things to know
+
+- Every job applies the three idempotent schema files in `sql/germany/` first,
+  so a forecast run applies them once per lead time. This is simple and safe;
+  it is why no separate install step exists.
+- Building the boundary tiles needs `tippecanoe`, once per geography version.
+- The serving views compute on read; a query takes about 1.6 to 2.7 seconds.
+- `de_icon_cell_gemeinde_bridge_cell_idx` supports the foreign key from the
+  bridge to the cells. Without it, rebuilding the bridge on an installed
+  database takes about five times longer (648 s against 126 s).
+- Per-cell values are stored for the two retained runs so that checks 6 and 7
+  can run on them (588 MB). If storage becomes an issue, the trade-off has to
+  be revisited and those checks redesigned first (ADR 018).
+
+## Decisions
+
+[ADR 014](adr/014-equal-area-projection-for-germany.md) equal-area projection ·
+[ADR 015](adr/015-rollup-weighting.md) roll-up weighting ·
+[ADR 016](adr/016-map-pmtiles-and-json-values.md) map: PMTiles and JSON ·
+[ADR 017](adr/017-zensus-2022-population-and-source-checks.md) Zensus and source
+checks · [ADR 018](adr/018-sql-aggregation-and-cell-storage.md) SQL aggregation
+and cell storage.

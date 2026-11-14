@@ -1,7 +1,5 @@
 """Exercise real PostgreSQL forecast views using disposable two-PLR fixtures."""
 
-from __future__ import annotations
-
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 

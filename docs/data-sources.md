@@ -202,6 +202,143 @@ archive. Preserve the original source attribution, identify the reference as
 modified/aggregated, link the applicable license, and retain the Berlin LOR
 geography attribution wherever that derived reference is redistributed.
 
+## Germany layer: BKG VG250 administrative boundaries
+
+- Publisher: Bundesamt für Kartographie und Geodäsie (BKG).
+- Product: Verwaltungsgebiete 1:250 000, levels ("Ebenen"), GeoPackage,
+  UTM32s (EPSG:25832).
+- Vintage: **Stand 31.12.2022** (`aktualitaet.txt` in the archive).
+- Source:
+  `https://daten.gdz.bkg.bund.de/produkte/vg/vg250_ebenen_1231/2022/vg250_12-31.utm32s.gpkg.ebenen.zip`.
+- Archive size: 72,214,199 bytes.
+- Archive SHA-256:
+  `4a4d9590cac21028c3f120172d1ab3b026ac0a8b202d0f168e1304383ae44e59`.
+- Extracted GeoPackage (`DE_VG250.gpkg`) SHA-256, for information:
+  `12f0a8d27b40ed116e67c881cadc69dba4c5c6ad635df751305d18d3e9141144`.
+- Retrieval: `uv run --env-file .env python -m src.germany.acquire --only vg250`
+  (verifies size and checksum, refuses to overwrite a different local file).
+- Loaded into: `raw.de_vg250`, one row per delivered feature, column `level`
+  in `sta`, `lan`, `krs`, `gem`.
+- License: Datenlizenz Deutschland – Namensnennung – Version 2.0
+  (dl-de/by-2-0), as stated in the archive's
+  `quellenvermerk_datenlizenz_deutschland.pdf`.
+- Required attribution (BKG *Quellenvermerk*; link it to
+  <https://www.bkg.bund.de> on web pages; this project modifies the data):
+
+```text
+© GeoBasis-DE / BKG 2022 (Daten verändert)
+```
+
+**Why 31.12.2022.** Zensus 2022 Gemeinde results use the territorial status
+(*Gebietsstand*) of 15.05.2022. BKG publishes VG250 only for 01.01. and 31.12.
+Comparing keys on 2026-11-09:
+
+| VG250 vintage | Gemeinden (GF = 4) | Zensus keys missing in VG250 | VG250 keys missing in Zensus |
+| --- | ---: | ---: | ---: |
+| 01.01.2022 | 10,993 | 2 (Pinnow, Schwedt/Oder) | 209 |
+| 31.12.2022 | 10,990 | 0 | 204, all *Gemeindefreies Gebiet* |
+
+With 31.12.2022 every Zensus Gemeinde (12-digit ARS) has exactly one geometry.
+The 204 unincorporated areas keep their geometry; their population is NULL,
+never 0. Residual risk: boundary changes between 15.05. and 31.12.2022 that
+kept all keys would not be detected by a key comparison.
+
+**Geofactor.** The VG250 documentation (`dokumentation/vg250.pdf`, attribute
+GF) defines 1 = water without structure, 2 = water with structure, 3 = land
+without structure, 4 = land with structure, and states that each
+administrative unit has exactly one GF = 4 record; filtering to GF = 4
+removes the North Sea, Baltic Sea and Lake Constance parts. Raw keeps all
+records; normalization filters to GF = 4.
+
+| Level | Delivered features | GF = 4 |
+| --- | ---: | ---: |
+| Staat (`sta`) | 11 | 1 |
+| Länder (`lan`) | 35 | 16 |
+| Kreise (`krs`) | 430 | 400 |
+| Gemeinden (`gem`) | 11,119 | 10,990 |
+
+## Germany layer: Zensus 2022 population
+
+- Publisher: Statistische Ämter des Bundes und der Länder.
+- Database: Zensusdatenbank, <https://ergebnisse.zensus2022.de/>.
+- Table: **1000A-1003** "Personen: Alter (5 Altersklassen)", statistic 1000A
+  "Bevölkerung kompakt (Gebietsstand 15.05.2022)".
+- Reference date (*Stichtag*): 2022-05-15. Gebietsstand: 15.05.2022.
+- Measure used by the Germany layer: **total population** per region, the
+  row without an age class. The five age classes (`ALTKL1`: under 18,
+  18–29, 30–49, 50–64, 65 and older) are loaded into raw as delivered but are
+  not served.
+- Retrieval: Zensus REST API (`/api/rest/2020/data/tablefile`, format
+  `ffcsv`), one request per regional variable. Each file also contains the
+  Germany (`GEODL1`) rows.
+
+| Regional variable | Level | Regions | Flat CSV SHA-256 |
+| --- | --- | ---: | --- |
+| `GEOBL1` | Länder | 16 | `83b6ea9532e74e4c27327e9d6544e4abd48923dc1ae11563225d6acd312674f3` |
+| `GEOLK4` | Kreise (Stand 15.05.22) | 400 | `71946b5fcc69a3e29d5732e33231badd7a19a7922e7d9bc39efb82d2e868f35f` |
+| `GEOGM4` | Gemeinden (Gebietsstand 15.05.2022) | 10,786 | `e3489be7b6c1d432f155788f9c64ea84e3f94e535891fa2582bbd81c5c681d4a` |
+
+The zip wrapper returned by the API differs on every request (its file name
+carries a timestamp); the contained CSV was byte-identical across repeated
+downloads, so the checksum applies to the extracted CSV.
+
+**Access.** The API needs a free personal token (register at the Zensus
+database, then copy it from the dialog "Webservice-Schnittstelle (API)").
+Set it as `ZENSUS2022_TOKEN` in `.env`:
+
+```bash
+uv run --env-file .env python -m src.germany.acquire --only zensus
+```
+
+The token is sent only as an HTTP header. **The API echoes the token in plain
+text in the `Username` field of its JSON responses**, so the acquisition code
+redacts JSON bodies before they appear in errors, and never stores them. The
+delivered table files contain no credentials. Never commit raw API responses.
+
+- Loaded into: `raw.de_zensus2022_population`, all values kept as delivered text.
+- License and attribution, as returned by the API's `Copyright` field and the
+  table footer:
+
+```text
+© Statistische Ämter des Bundes und der Länder, Deutschland, 2026.
+Lizenziert unter der Datenlizenz Deutschland - Namensnennung - Version 2.0
+```
+
+**Confidentiality method.** Zensus 2022 results are protected with the
+**Cell Key Method**, a data-perturbing method ("stochastische Überlagerung").
+Destatis states that, as a consequence, the values of a table row or column
+do not necessarily add up to the published total, and that official
+population counts of administrative units are published unchanged
+([Destatis: Geheimhaltung mit der Cell-Key-Methode](https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bevoelkerung/Zensus2022/Datenbank/geheimhaltung-cell-key-methode.html);
+[Destatis: Zensus 2022 Geheimhaltung](https://www.destatis.de/DE/Themen/Gesellschaft-Umwelt/Bevoelkerung/Zensus2022/Methoden/geheimhaltung.html)).
+This is why the layer uses total population: the age breakdown is perturbed
+(e.g. Gemeinde values for 65+ sum to 18,389,751 against a published Germany
+value of 18,390,209), while total population is not. Observed on the loaded
+files for total population:
+
+| Comparison | Result |
+| --- | --- |
+| Σ Gemeinden per Kreis vs. published Kreis total | exact for all 400 Kreise |
+| Σ Gemeinden, Σ Kreise, Σ Länder | 82,711,282 each |
+| Published Germany (`GEODL1`) total | 82,719,540 (+8,258 vs. Σ Länder) |
+
+The 8,258-person gap between the Germany total and the sum of the Länder is
+in the source itself. Destatis' *Qualitätsbericht Zensus 2022* (20/11/2024,
+<https://www.destatis.de/DE/Methoden/Qualitaet/Qualitaetsberichte/Bevoelkerung/zensus-2022.pdf>)
+defines the population to include "die im Ausland tätigen Angehörigen der
+Bundeswehr, der Polizeibehörden und des Auswärtigen Dienstes sowie deren dort
+ansässige Familien" (section 1.1) and says register-based results contain them
+"auf Bundesebene" (section 7.2). The report does not state their number; the
+gap is consistent with this definition but not confirmed numerically. Check 3
+(`de_source_totals`) expects exactly this difference for the pinned extracts.
+
+**Sign "-".** 42 Gemeinde age-class counts (34 Gemeinden) are delivered as
+`-`; no total-population count is. The sign legend in Destatis' Zensus 2022
+`Regionaltabelle_Bevoelkerung.xlsx` defines "– = Genau Null oder auf Null
+geändert" (exactly zero, or changed to zero). No legend was found for the
+database table itself; the project applies this definition and keeps the
+original sign in raw.
+
 ## Combined attribution
 
 When presenting the serving dataset or its downloadable derivatives, a concise
@@ -219,4 +356,14 @@ their main residence, 2025-12-31.
 
 Spatial aggregation and historical reference statistics were produced by this
 project and are not original source publications.
+```
+
+For the Germany layer, add:
+
+```text
+Administrative boundaries: © GeoBasis-DE / BKG 2022 (Daten verändert),
+dl-de/by-2-0.
+
+Population: Zensus 2022, © Statistische Ämter des Bundes und der Länder,
+Deutschland, 2026, dl-de/by-2-0.
 ```
