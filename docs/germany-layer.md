@@ -32,7 +32,7 @@ Germany jobs and stays stopped by default.
 
 | Step | Object | Notes |
 | --- | --- | --- |
-| Grid subset | `normalized.de_icon_cell` | ICON cells intersecting a Gemeinde, rebuilt from the grid's lon/lat vertices in EPSG:3035 (not reprojected from Berlin's EPSG:25833 cells) |
+| Grid subset | `normalized.de_icon_cell` | ICON cells intersecting a Gemeinde: the Berlin pipeline's cell polygons (EPSG:25833, read-only) transformed to EPSG:3035 |
 | Bridge | `normalized.de_icon_cell_gemeinde_bridge` | intersection area and `fraction_of_gemeinde`, versioned by geography and grid |
 | Cell forecast | `normalized.de_forecast_run`, `normalized.de_icon_cell_value` | one row per run (geography version, grid) and one row per run, lead hour and cell: temperature and shade apparent temperature, computed with Berlin's units and `normalized.calculate_apparent_temperature_shade_c`; lead-time label and valid time are derived from the lead hour |
 | Gemeinde forecast | `normalized.de_gemeinde_forecast` | area-weighted from cells, like Berlin's PLR values |

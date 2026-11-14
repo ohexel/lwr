@@ -3,9 +3,9 @@
 -- de_-prefixed objects; Berlin objects are read, never written.
 
 -- ---------------------------------------------------------------------------
--- Germany grid subset: ICON cells intersecting any Gemeinde, EPSG:3035.
--- Geometry is rebuilt from the grid's longitude/latitude vertices, so it is
--- not a re-projection of Berlin's EPSG:25833 cells.
+-- Germany grid subset: ICON cells intersecting any Gemeinde, in EPSG:3035,
+-- transformed from the Berlin pipeline's cell polygons (EPSG:25833,
+-- read-only). Area weights are computed in EPSG:3035 (ADR 014).
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS normalized.de_icon_cell (
     geography_version text NOT NULL,
@@ -37,6 +37,13 @@ CREATE TABLE IF NOT EXISTS normalized.de_icon_cell_gemeinde_bridge (
             geography_version, source_grid_id, cell_index
         )
 );
+
+-- Supports the foreign key to de_icon_cell: without it, deleting the cells of
+-- a geography version (refresh_de_icon_bridge) scans the bridge once per cell.
+CREATE INDEX IF NOT EXISTS de_icon_cell_gemeinde_bridge_cell_idx
+    ON normalized.de_icon_cell_gemeinde_bridge (
+        geography_version, source_grid_id, cell_index
+    );
 
 -- ---------------------------------------------------------------------------
 -- Forecast facts. Retained for the newest complete run and the complete run
@@ -98,72 +105,28 @@ BEGIN
     WHERE c.geography_version = p_geography_version
       AND c.source_grid_id = p_source_grid_id;
 
-    -- Candidates: Berlin-pipeline cell polygons (read-only) within 5 km of a
-    -- Gemeinde; exact geometry is then rebuilt from the vertices.
+    -- Germany cells: the Berlin pipeline's ICON cell polygons (read-only,
+    -- EPSG:25833) transformed to EPSG:3035, kept where they intersect a Gemeinde.
     INSERT INTO normalized.de_icon_cell
-    WITH candidates AS (
-        SELECT icon.cell_index
+    WITH cells AS (
+        SELECT
+            icon.cell_index,
+            public.ST_Transform(icon.geometry, 3035) AS geometry
         FROM normalized.icon_cell AS icon
         WHERE icon.source_grid_id = p_source_grid_id
-          AND EXISTS (
-              SELECT 1
-              FROM normalized.de_gemeinde AS g
-              WHERE g.geography_version = p_geography_version
-                AND public.ST_DWithin(
-                    g.geometry,
-                    public.ST_Transform(icon.geometry, 3035),
-                    5000
-                )
-          )
-    ),
-    vertices AS (
-        SELECT
-            topology.cell_index,
-            public.ST_Transform(
-                public.ST_SetSRID(
-                    public.ST_MakePolygon(
-                        public.ST_MakeLine(
-                            ARRAY[
-                                public.ST_MakePoint(
-                                    MAX(v.longitude_deg) FILTER (WHERE topology.vertex_order = 0),
-                                    MAX(v.latitude_deg) FILTER (WHERE topology.vertex_order = 0)),
-                                public.ST_MakePoint(
-                                    MAX(v.longitude_deg) FILTER (WHERE topology.vertex_order = 1),
-                                    MAX(v.latitude_deg) FILTER (WHERE topology.vertex_order = 1)),
-                                public.ST_MakePoint(
-                                    MAX(v.longitude_deg) FILTER (WHERE topology.vertex_order = 2),
-                                    MAX(v.latitude_deg) FILTER (WHERE topology.vertex_order = 2)),
-                                public.ST_MakePoint(
-                                    MAX(v.longitude_deg) FILTER (WHERE topology.vertex_order = 0),
-                                    MAX(v.latitude_deg) FILTER (WHERE topology.vertex_order = 0))
-                            ]
-                        )
-                    ),
-                    4326
-                ),
-                3035
-            ) AS geometry
-        FROM candidates
-        JOIN raw.icon_grid_cell_vertex AS topology
-          ON topology.source_grid_id = p_source_grid_id
-         AND topology.cell_index = candidates.cell_index
-        JOIN raw.icon_grid_vertex AS v
-          ON v.source_grid_id = topology.source_grid_id
-         AND v.vertex_index = topology.vertex_index
-        GROUP BY topology.cell_index
     )
     SELECT
         p_geography_version,
         p_source_grid_id,
-        vertices.cell_index,
-        public.ST_Normalize(vertices.geometry)::public.geometry(Polygon, 3035),
-        public.ST_Area(vertices.geometry)
-    FROM vertices
+        cells.cell_index,
+        public.ST_Normalize(cells.geometry)::public.geometry(Polygon, 3035),
+        public.ST_Area(cells.geometry)
+    FROM cells
     WHERE EXISTS (
         SELECT 1
         FROM normalized.de_gemeinde AS g
         WHERE g.geography_version = p_geography_version
-          AND public.ST_Intersects(g.geometry, vertices.geometry)
+          AND public.ST_Intersects(g.geometry, cells.geometry)
     );
 
     INSERT INTO normalized.de_icon_cell_gemeinde_bridge

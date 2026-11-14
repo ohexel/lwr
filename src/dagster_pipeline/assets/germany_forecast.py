@@ -36,8 +36,8 @@ KEEP_COMPLETE_RUNS = 2
     deps=[NORMALIZED_DE_HIERARCHY_KEY, RAW_ICON_GRID_KEY],
     group_name=GERMANY_GROUP,
     description=(
-        "Germany grid subset (ICON cells intersecting a Gemeinde, rebuilt "
-        "from lon/lat vertices in EPSG:3035) and the cell-Gemeinde area "
+        "Germany grid subset (ICON cells intersecting a Gemeinde, transformed "
+        "from the Berlin cell polygons to EPSG:3035) and the cell-Gemeinde area "
         "bridge. Berlin's mask and bridges are read, never written."
     ),
 )
