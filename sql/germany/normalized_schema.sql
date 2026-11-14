@@ -61,6 +61,10 @@ CREATE INDEX IF NOT EXISTS de_gemeinde_geometry_idx
 -- ---------------------------------------------------------------------------
 -- Population (Zensus 2022 total population, reference date 2022-05-15)
 -- NULL never means 0: population_status says why a value is missing.
+-- 'census_zero_or_set_to_zero' is defensive: no Gemeinde total in the pinned
+-- extract is '-' (the Zensus sign for 'exactly zero or set to zero'), but
+-- future extracts or tables may contain it. Kept so that such a value is
+-- stored as 0 with this flag, not as NULL.
 -- ---------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS normalized.de_gemeinde_population (
     geography_version text NOT NULL,

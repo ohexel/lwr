@@ -91,6 +91,7 @@
 
   function residents(record) {
     if (record.p === null || record.p === undefined) return "no census record";
+    // Defensive: not present in the current extract (see normalized_schema.sql).
     if (record.s === "census_zero_or_set_to_zero") return "0 (exactly zero or set to zero)";
     return numberFmt.format(record.p);
   }
