@@ -109,24 +109,6 @@ KREIS_TYPE_QUERY = """
 SELECT kreis_key, kreis_type FROM normalized.de_kreis WHERE geography_version = %s
 """
 
-# A point inside each region (for search: the map zooms there).
-ANCHOR_QUERY = """
-SELECT level, key,
-       round(ST_X(p)::numeric, 3)::float8, round(ST_Y(p)::numeric, 3)::float8
-FROM (
-    SELECT 'lan' AS level, land_key AS key,
-           ST_Transform(ST_PointOnSurface(geometry), 4326) AS p
-    FROM normalized.de_land WHERE geography_version = %(v)s
-    UNION ALL
-    SELECT 'krs', kreis_key, ST_Transform(ST_PointOnSurface(geometry), 4326)
-    FROM normalized.de_kreis WHERE geography_version = %(v)s
-    UNION ALL
-    SELECT 'gem', ars, ST_Transform(ST_PointOnSurface(geometry), 4326)
-    FROM normalized.de_gemeinde WHERE geography_version = %(v)s
-) AS anchors
-"""
-
-
 # ---------------------------------------------------------------------------
 # Values
 # ---------------------------------------------------------------------------
@@ -238,13 +220,7 @@ def collect_values(connection: psycopg.Connection) -> dict[str, object]:
     laender = rollup_records(connection.execute(ROLLUP_QUERIES["lan"]).fetchall())
 
     by_level = {"gem": gemeinden, "krs": kreise, "lan": laender}
-    for level, key, lon, lat in connection.execute(ANCHOR_QUERY, {"v": geography_version}):
-        if key in by_level[level]:
-            by_level[level][key]["c"] = [lon, lat]
-
     for level, records in by_level.items():
-        if any("c" not in record for record in records.values()):
-            raise ValueError(f"{level}: region without anchor point")
         if len(records) != EXPECTED_COUNTS[level]:
             raise ValueError(
                 f"{level}: {len(records)} regions, expected {EXPECTED_COUNTS[level]}"

@@ -8,12 +8,12 @@
   <meta name="description" content="Maximum shade apparent temperature over the next 24 hours for every German Land, Kreis and Gemeinde, from the DWD ICON-D2-RUC forecast.">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css"
         integrity="sha384-MinO0mNliZ3vwppuPOUnGa+iq619pfMhLVUXfC4LHwSCvF9H+6P/KO4Q7qBOYV5V" crossorigin="anonymous">
-  <link rel="stylesheet" href="styles.css?v=1">
+  <link rel="stylesheet" href="styles.css?v=2">
   <script src="https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js"
           integrity="sha384-SYKAG6cglRMN0RVvhNeBY0r3FYKNOJtznwA0v7B5Vp9tr31xAHsZC0DqkQ/pZDmj" crossorigin="anonymous" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/pmtiles@3.2.1/dist/pmtiles.js"
           integrity="sha384-QfbOCebHNw8pQiPAOd2IFee2v2A5VYZxBk0+JGZ5H+3mfzVIp6zsQNkTsfGJot93" crossorigin="anonymous" defer></script>
-  <script src="app.js?v=1" defer></script>
+  <script src="app.js?v=2" defer></script>
 </head>
 <body>
   <header class="masthead">
@@ -37,13 +37,6 @@
         <label><input type="radio" name="weighting" value="pop"> Population-weighted</label>
       </fieldset>
 
-      <div class="search">
-        <label for="region-search">Find a region</label>
-        <input id="region-search" type="search" list="region-options" autocomplete="off"
-               placeholder="Name, e.g. Leipzig">
-        <datalist id="region-options"></datalist>
-      </div>
-
       <div class="legend" aria-labelledby="legend-title">
         <p id="legend-title" class="legend-title">Max. shade apparent temperature, next 24 h</p>
         <div class="legend-bar" id="legend-bar"></div>
@@ -53,7 +46,7 @@
       </div>
 
       <section class="details" id="details" aria-live="polite">
-        <p class="hint">Hover over or click a region, or search for it by name.</p>
+        <p class="hint">Hover over or click a region.</p>
       </section>
 
       <p class="bund" id="bund"></p>

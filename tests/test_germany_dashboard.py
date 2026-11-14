@@ -161,7 +161,6 @@ def test_level_switch_is_keyboard_operable_and_values_are_not_classified() -> No
     html = (DASHBOARD_SOURCE / "index.html").read_text(encoding="utf-8")
     for level in ("lan", "krs", "gem"):
         assert f'type="radio" name="level" value="{level}"' in html
-    assert 'id="region-search"' in html
     script = (DASHBOARD_SOURCE / "app.js").read_text(encoding="utf-8")
     # Continuous colour scale (ColorBrewer YlOrRd), no warning classes.
     assert '"interpolate", ["linear"], ["feature-state", "v"]' in script

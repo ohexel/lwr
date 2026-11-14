@@ -13,7 +13,6 @@
   const NO_DATA = getComputedStyle(document.documentElement)
     .getPropertyValue("--nodata").trim() || "#c9ced6";
   const GERMANY_BOUNDS = [[5.6, 47.1], [15.3, 55.2]];
-  const FLY_ZOOM = { lan: 6.5, krs: 8.5, gem: 10.5 };
 
   const state = { level: "krs", weighting: "area", values: null, hovered: null, pinned: null };
   const $ = (id) => document.getElementById(id);
@@ -124,7 +123,7 @@
     if (!record) {
       const p = document.createElement("p");
       p.className = "hint";
-      p.textContent = "Hover over or click a region, or search for it by name.";
+      p.textContent = "Hover over or click a region.";
       panel.append(p);
       return;
     }
@@ -198,35 +197,6 @@
       `${numberFmt.format(b.p)} residents with a census record.`;
   }
 
-  // ---------------------------------------------------------------- search
-  function searchLabel(level, key, record) {
-    if (level === "gem") {
-      const kreis = state.values.krs[record.k];
-      return `${record.n} (${kreis ? kreis.n : record.k})`;
-    }
-    return level === "krs" ? `${record.n} (${record.b || "Kreis"})` : record.n;
-  }
-
-  let searchIndex = new Map();
-  function buildSearch() {
-    const list = $("region-options");
-    list.replaceChildren();
-    searchIndex = new Map();
-    const records = state.values[state.level];
-    const entries = Object.keys(records).map((key) => [searchLabel(state.level, key, records[key]), key]);
-    entries.sort((a, b) => a[0].localeCompare(b[0], "de"));
-    const fragment = document.createDocumentFragment();
-    for (const [label, key] of entries) {
-      if (searchIndex.has(label)) continue; // identical label: keep first
-      searchIndex.set(label, key);
-      const option = document.createElement("option");
-      option.value = label;
-      fragment.append(option);
-    }
-    list.append(fragment);
-    $("region-search").placeholder = state.level === "gem" ? "Name, e.g. Leipzig" : `${LEVEL_LABEL[state.level]} name`;
-  }
-
   // ---------------------------------------------------------------- map
   function setHighlight(map, which, target) {
     const previous = state[which];
@@ -247,7 +217,6 @@
     setHighlight(map, "hovered", null);
     setHighlight(map, "pinned", null);
     renderDetails(level, null);
-    buildSearch();
   }
 
   function buildMap(tilesUrl) {
@@ -351,16 +320,6 @@
         if (state.pinned) renderDetails(state.level, state.pinned.id);
       });
     }
-    $("region-search").addEventListener("change", (event) => {
-      const key = searchIndex.get(event.target.value);
-      if (!key) return;
-      setHighlight(map, "pinned", target(key));
-      renderDetails(state.level, key);
-      const record = state.values[state.level][key];
-      if (record && record.c) {
-        map.flyTo({ center: record.c, zoom: FLY_ZOOM[state.level], essential: true });
-      }
-    });
   }
 
   // ---------------------------------------------------------------- start
@@ -378,7 +337,6 @@
     }
     renderHeader();
     renderLegend();
-    buildSearch();
     const tilesUrl = new URL(`data/${state.values.tiles}`, window.location.href).href;
     const map = buildMap(tilesUrl);
     map.on("load", () => {
