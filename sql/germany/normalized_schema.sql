@@ -250,7 +250,7 @@ CREATE OR REPLACE FUNCTION normalized.de_zensus_total_rows(
         END,
         raw_row.table_code,
         raw_row.source_sha256
-    FROM raw.de_zensus2022_age AS raw_row
+    FROM raw.de_zensus2022_population AS raw_row
     WHERE raw_row.source_sha256 = ANY(p_source_sha256s)
       AND raw_row.variable_2_attribute_code IS NULL
       AND raw_row.value_unit = 'Anzahl'
@@ -284,7 +284,7 @@ BEGIN
     -- Every file repeats the Germany row; all copies must agree.
     IF EXISTS (
         SELECT 1
-        FROM raw.de_zensus2022_age AS raw_row
+        FROM raw.de_zensus2022_population AS raw_row
         WHERE raw_row.source_sha256 = ANY(p_source_sha256s)
           AND raw_row.variable_2_attribute_code IS NULL
           AND raw_row.value_unit = 'Anzahl'

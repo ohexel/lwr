@@ -3,7 +3,7 @@ import dagster as dg
 from src.database.connection import database_connection
 from src.dagster_pipeline.assets.germany_raw import (
     RAW_DE_VG250_KEY,
-    RAW_DE_ZENSUS2022_AGE_KEY,
+    RAW_DE_ZENSUS2022_POPULATION_KEY,
 )
 from src.germany.contract import VG250_CONTRACT, ZENSUS_CONTRACT
 
@@ -71,10 +71,10 @@ def de_vg250_source_contract() -> dg.AssetCheckResult:
 
 
 @dg.asset_check(
-    asset=RAW_DE_ZENSUS2022_AGE_KEY,
-    name="de_zensus2022_age_source_contract",
+    asset=RAW_DE_ZENSUS2022_POPULATION_KEY,
+    name="de_zensus2022_population_source_contract",
 )
-def de_zensus2022_age_source_contract() -> dg.AssetCheckResult:
+def de_zensus2022_population_source_contract() -> dg.AssetCheckResult:
     """Per extract: region count, all five age classes, Germany total rows."""
     expected_hashes = {
         extract.csv_sha256: extract for extract in ZENSUS_CONTRACT.extracts
@@ -99,7 +99,7 @@ def de_zensus2022_age_source_contract() -> dg.AssetCheckResult:
                 COUNT(*) FILTER (WHERE variable_1_code = 'GEODL1'),
                 MIN(time_value),
                 MAX(time_value)
-            FROM raw.de_zensus2022_age
+            FROM raw.de_zensus2022_population
             WHERE source_sha256 = ANY(%s)
             GROUP BY source_sha256
             """,
@@ -149,5 +149,5 @@ def de_zensus2022_age_source_contract() -> dg.AssetCheckResult:
 
 GERMANY_RAW_CHECKS = [
     de_vg250_source_contract,
-    de_zensus2022_age_source_contract,
+    de_zensus2022_population_source_contract,
 ]

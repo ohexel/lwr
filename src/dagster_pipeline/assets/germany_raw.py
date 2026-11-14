@@ -13,7 +13,7 @@ from src.germany.raw_load import load_vg250_raw, load_zensus_raw
 GERMANY_GROUP = "germany"
 
 RAW_DE_VG250_KEY = dg.AssetKey(["raw", "de_vg250"])
-RAW_DE_ZENSUS2022_AGE_KEY = dg.AssetKey(["raw", "de_zensus2022_age"])
+RAW_DE_ZENSUS2022_POPULATION_KEY = dg.AssetKey(["raw", "de_zensus2022_population"])
 
 
 @dg.asset(
@@ -50,7 +50,7 @@ def raw_de_vg250(context: dg.AssetExecutionContext) -> None:
 
 
 @dg.asset(
-    key=RAW_DE_ZENSUS2022_AGE_KEY,
+    key=RAW_DE_ZENSUS2022_POPULATION_KEY,
     group_name=GERMANY_GROUP,
     description=(
         "Zensus 2022 table 1000A-1003 (age, 5 classes; Gebietsstand "
@@ -58,7 +58,7 @@ def raw_de_vg250(context: dg.AssetExecutionContext) -> None:
         "the Zensus API after checksum verification."
     ),
 )
-def raw_de_zensus2022_age(context: dg.AssetExecutionContext) -> None:
+def raw_de_zensus2022_population(context: dg.AssetExecutionContext) -> None:
     with requests.Session() as session:
         acquired = acquire_zensus(session)
     results = load_zensus_raw()
@@ -78,5 +78,5 @@ def raw_de_zensus2022_age(context: dg.AssetExecutionContext) -> None:
 
 GERMANY_RAW_ASSETS = [
     raw_de_vg250,
-    raw_de_zensus2022_age,
+    raw_de_zensus2022_population,
 ]

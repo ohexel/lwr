@@ -295,7 +295,7 @@ text in the `Username` field of its JSON responses**, so the acquisition code
 redacts JSON bodies before they appear in errors, and never stores them. The
 delivered table files contain no credentials. Never commit raw API responses.
 
-- Loaded into: `raw.de_zensus2022_age`, all values kept as delivered text.
+- Loaded into: `raw.de_zensus2022_population`, all values kept as delivered text.
 - License and attribution, as returned by the API's `Copyright` field and the
   table footer:
 

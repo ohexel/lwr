@@ -5,7 +5,7 @@ import dagster as dg
 from src.dagster_pipeline.assets.germany_raw import (
     GERMANY_GROUP,
     RAW_DE_VG250_KEY,
-    RAW_DE_ZENSUS2022_AGE_KEY,
+    RAW_DE_ZENSUS2022_POPULATION_KEY,
 )
 from src.germany.contract import GEOGRAPHY_VERSION
 from src.germany.normalize import refresh_hierarchy, refresh_population
@@ -33,7 +33,7 @@ def normalized_de_hierarchy(context: dg.AssetExecutionContext) -> None:
 
 @dg.asset(
     key=NORMALIZED_DE_POPULATION_KEY,
-    deps=[NORMALIZED_DE_HIERARCHY_KEY, RAW_DE_ZENSUS2022_AGE_KEY],
+    deps=[NORMALIZED_DE_HIERARCHY_KEY, RAW_DE_ZENSUS2022_POPULATION_KEY],
     group_name=GERMANY_GROUP,
     description=(
         "normalized.de_gemeinde_population (Zensus 2022 total population "

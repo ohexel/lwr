@@ -37,7 +37,7 @@ def test_germany_group_is_registered_with_all_checks() -> None:
     }
     assert {
         "raw/de_vg250",
-        "raw/de_zensus2022_age",
+        "raw/de_zensus2022_population",
         "normalized/de_hierarchy",
         "normalized/de_population",
         "normalized/de_icon_gemeinde_bridge",

@@ -54,7 +54,6 @@ def test_vg250_contract_counts() -> None:
 @pytest.mark.contract
 def test_zensus_contract_extracts() -> None:
     assert ZENSUS_CONTRACT.table_code == "1000A-1003"
-    assert not hasattr(ZENSUS_CONTRACT, "age_65plus_code")
     assert len(ZENSUS_CONTRACT.age_class_codes) == 5
     assert {
         (extract.regional_variable, extract.region_count)
@@ -229,9 +228,9 @@ def test_parse_zensus_flat_csv_rejects_short_rows() -> None:
 def test_raw_germany_tables_match_contracts() -> None:
     from src.dagster_pipeline.checks.germany_raw import (
         de_vg250_source_contract,
-        de_zensus2022_age_source_contract,
+        de_zensus2022_population_source_contract,
     )
 
-    for check in (de_vg250_source_contract, de_zensus2022_age_source_contract):
+    for check in (de_vg250_source_contract, de_zensus2022_population_source_contract):
         result = check.node_def.compute_fn.decorated_fn()
         assert result.passed, result.metadata

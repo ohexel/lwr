@@ -256,13 +256,13 @@ def load_zensus_extract(
     )
 
     connection.execute(
-        "DELETE FROM raw.de_zensus2022_age WHERE source_sha256 = %s",
+        "DELETE FROM raw.de_zensus2022_population WHERE source_sha256 = %s",
         (source_sha256,),
     )
     loaded = copy_rows(
         connection,
         schema="raw",
-        table="de_zensus2022_age",
+        table="de_zensus2022_population",
         columns=(
             "table_code",
             "requested_regional_variable",
@@ -276,7 +276,7 @@ def load_zensus_extract(
         rows=rows,
     )
     return RawLoadResult(
-        target_table="raw.de_zensus2022_age",
+        target_table="raw.de_zensus2022_population",
         source_path=str(path),
         source_sha256=source_sha256,
         row_count=loaded.row_count,

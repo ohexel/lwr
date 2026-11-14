@@ -57,12 +57,14 @@ COMMENT ON TABLE raw.de_vg250 IS
     'delivered, EPSG:25832, all GF values. Germany layer.';
 
 -- ---------------------------------------------------------------------------
--- raw.de_zensus2022_age: Zensus 2022 table 1000A-1003 as delivered in the
+-- raw.de_zensus2022_population: Zensus 2022 table 1000A-1003 as delivered in the
 -- API's flat CSV ("ffcsv") format. One file per requested regional variable;
 -- each file also carries the Germany (GEODL1) rows. Values stay text: the
 -- source uses sign characters (e.g. '-') that normalization interprets.
+-- Named for its use: only the total population is read from it. The age
+-- classes stay as delivered (see ADR 017).
 -- ---------------------------------------------------------------------------
-CREATE TABLE IF NOT EXISTS raw.de_zensus2022_age (
+CREATE TABLE IF NOT EXISTS raw.de_zensus2022_population (
     source_row_id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     table_code text NOT NULL,
     requested_regional_variable text NOT NULL,
@@ -91,10 +93,10 @@ CREATE TABLE IF NOT EXISTS raw.de_zensus2022_age (
     loaded_at_utc timestamp with time zone DEFAULT now() NOT NULL
 );
 
-CREATE INDEX IF NOT EXISTS de_zensus2022_age_source_idx
-    ON raw.de_zensus2022_age (source_sha256);
+CREATE INDEX IF NOT EXISTS de_zensus2022_population_source_idx
+    ON raw.de_zensus2022_population (source_sha256);
 
-COMMENT ON TABLE raw.de_zensus2022_age IS
+COMMENT ON TABLE raw.de_zensus2022_population IS
     'Zensus 2022 table 1000A-1003 (Personen: Alter, 5 Altersklassen), '
-    'Gebietsstand 15.05.2022, as delivered (flat CSV). dl-de/by-2-0. '
-    'Germany layer.';
+    'Gebietsstand 15.05.2022, as delivered (flat CSV). The pipeline uses the '
+    'total over all age classes. dl-de/by-2-0. Germany layer.';

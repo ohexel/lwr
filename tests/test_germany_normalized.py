@@ -140,7 +140,7 @@ def test_refresh_and_checks_classify_every_case() -> None:
                 rows=vg250_rows,
             )
             copy_rows(
-                connection, schema="raw", table="de_zensus2022_age",
+                connection, schema="raw", table="de_zensus2022_population",
                 columns=(
                     "table_code", "requested_regional_variable",
                     "statistics_code", "statistics_label", "time_code",
