@@ -57,7 +57,7 @@ def de_key_coverage() -> dg.AssetCheckResult:
 
 @dg.asset_check(asset=NORMALIZED_DE_HIERARCHY_KEY, name="de_hierarchy_integrity")
 def de_hierarchy_integrity() -> dg.AssetCheckResult:
-    """Check 2: one Kreis and one Land per Gemeinde, all parents exist."""
+    """Check 2: what foreign keys cannot guarantee."""
     with database_connection(application_name="lwr_germany_hierarchy_check") as connection:
         violations = connection.execute(
             "SELECT * FROM normalized.check_de_hierarchy(%s)",
@@ -86,9 +86,10 @@ def de_hierarchy_integrity() -> dg.AssetCheckResult:
             "kreise_over_tolerance": int(over_tolerance),
         },
         description=(
-            "Every Gemeinde references an existing Kreis and Land, every Kreis "
-            "an existing Land, no parent is empty, Gemeinde keys agree with "
-            "VG250 key parts, and Gemeinde areas sum to their Kreis area."
+            "Foreign keys guarantee that every parent exists. Checked here: no "
+            "Kreis without Gemeinden, no Land without Kreise, each Gemeinde's "
+            "Land equals its Kreis's Land, Gemeinde keys agree with VG250 key "
+            "parts, and Gemeinde areas sum to their Kreis area."
         ),
     )
 

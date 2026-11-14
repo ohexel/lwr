@@ -57,7 +57,7 @@ existing file retention rule.
 | # | Check | Rule | Severity |
 | --- | --- | --- | --- |
 | 1 | `de_key_coverage` | every Land/Kreis/Gemeinde key exists in VG250 and Zensus; unincorporated areas without census record listed, non-blocking | error |
-| 2 | `de_hierarchy_integrity` | parents exist, no empty parent, VG250 key parts agree, Σ Gemeinde area = Kreis area within 1e-9 (relative) | error |
+| 2 | `de_hierarchy_integrity` | what foreign keys cannot guarantee: no Kreis without Gemeinden, no Land without Kreise, a Gemeinde's Land equals its Kreis's Land, VG250 key parts agree, Σ Gemeinde area = Kreis area within 1e-9 (relative); foreign keys cover that parents exist | error |
 | 3 | `de_source_totals` | Σ normalized Gemeinde population = published Kreis and Land totals, exactly; published Germany total − Σ Länder = the documented 8,258, exactly | error |
 | 4 | `de_bridge_coverage` | Σ intersection / Gemeinde area within [0.999, 1] for every Gemeinde | error |
 | 5 | `de_forecast_completeness` | served run has every Gemeinde × 25 lead times | error |

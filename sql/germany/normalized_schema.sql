@@ -400,9 +400,11 @@ CREATE OR REPLACE FUNCTION normalized.check_de_key_coverage(
 $$;
 
 -- ---------------------------------------------------------------------------
--- Check 2: hierarchy integrity. One row per violation; empty = pass.
--- Foreign keys already guarantee that parents exist; this re-verifies it
--- explicitly and adds what keys cannot express.
+-- Check 2: hierarchy integrity beyond what foreign keys guarantee. Foreign
+-- keys already reject a Gemeinde or Kreis whose parent does not exist. This
+-- check covers what keys cannot express: no empty parents, a Gemeinde's Land
+-- equals its Kreis's Land, Gemeinde keys agree with VG250's key parts. One row
+-- per violation; empty = pass. Area consistency is checked separately.
 -- ---------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION normalized.check_de_hierarchy(
     p_geography_version text
@@ -413,25 +415,6 @@ CREATE OR REPLACE FUNCTION normalized.check_de_hierarchy(
 )
     LANGUAGE sql STABLE
     AS $$
-    -- Gemeinde parents exist and its key agrees with VG250's own key parts.
-    SELECT 'gemeinde_without_kreis', g.ars, g.kreis_key
-    FROM normalized.de_gemeinde AS g
-    LEFT JOIN normalized.de_kreis AS k
-      USING (geography_version, kreis_key)
-    WHERE g.geography_version = p_geography_version AND k.kreis_key IS NULL
-    UNION ALL
-    SELECT 'gemeinde_without_land', g.ars, g.land_key
-    FROM normalized.de_gemeinde AS g
-    LEFT JOIN normalized.de_land AS l
-      USING (geography_version, land_key)
-    WHERE g.geography_version = p_geography_version AND l.land_key IS NULL
-    UNION ALL
-    SELECT 'kreis_without_land', k.kreis_key, k.land_key
-    FROM normalized.de_kreis AS k
-    LEFT JOIN normalized.de_land AS l
-      USING (geography_version, land_key)
-    WHERE k.geography_version = p_geography_version AND l.land_key IS NULL
-    UNION ALL
     SELECT 'kreis_without_gemeinde', k.kreis_key, k.kreis_name
     FROM normalized.de_kreis AS k
     WHERE k.geography_version = p_geography_version
@@ -449,6 +432,14 @@ CREATE OR REPLACE FUNCTION normalized.check_de_hierarchy(
           WHERE k.geography_version = l.geography_version
             AND k.land_key = l.land_key
       )
+    UNION ALL
+    SELECT 'gemeinde_land_differs_from_kreis_land', g.ars,
+           g.land_key || ' vs ' || k.land_key
+    FROM normalized.de_gemeinde AS g
+    JOIN normalized.de_kreis AS k
+      USING (geography_version, kreis_key)
+    WHERE g.geography_version = p_geography_version
+      AND g.land_key <> k.land_key
     UNION ALL
     SELECT 'gemeinde_key_parts_disagree', g.ars,
            concat_ws('|', r.sn_l, r.sn_r, r.sn_k)
